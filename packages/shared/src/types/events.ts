@@ -1,5 +1,5 @@
 import type { ClientGameState, ResourceHand } from './game.js';
-import type { HexId, VertexId, EdgeId } from './board.js';
+import type { HexId, VertexId, EdgeId, ResourceType } from './board.js';
 
 export type AckOkWith<T = unknown> = { ok: true } & T;
 export interface AckErr {
@@ -76,6 +76,10 @@ export interface RespondTradePayload {
 export interface CancelTradePayload {
   tradeId: string;
 }
+export interface FinalizeTradePayload {
+  tradeId: string;
+  withPlayerId: string;
+}
 export interface BankTradePayload {
   give: Partial<ResourceHand>;
   receive: Partial<ResourceHand>;
@@ -104,6 +108,7 @@ export interface ClientToServerEvents {
   propose_trade: (payload: ProposeTradePayload, cb: (ack: Ack) => void) => void;
   respond_trade: (payload: RespondTradePayload, cb: (ack: Ack) => void) => void;
   cancel_trade: (payload: CancelTradePayload, cb: (ack: Ack) => void) => void;
+  finalize_trade: (payload: FinalizeTradePayload, cb: (ack: Ack) => void) => void;
   bank_trade: (payload: BankTradePayload, cb: (ack: Ack) => void) => void;
   end_turn: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
 }
@@ -130,6 +135,12 @@ export interface RobbedNoticePayload {
   victimId: string;
   hexId: HexId;
 }
+/** Sent privately to the robber and the victim only -- the stolen resource stays hidden from everyone else. */
+export interface RobbedDetailPayload {
+  robberId: string;
+  victimId: string;
+  resource: ResourceType;
+}
 export interface KnightPlayedPayload {
   playerId: string;
 }
@@ -155,6 +166,7 @@ export interface ServerToClientEvents {
   state_update: (payload: ClientGameState) => void;
   dice_rolled: (payload: DiceRolledPayload) => void;
   robbed_notice: (payload: RobbedNoticePayload) => void;
+  robbed_detail: (payload: RobbedDetailPayload) => void;
   knight_played: (payload: KnightPlayedPayload) => void;
   game_sound: (payload: GameSoundPayload) => void;
   player_disconnected: (payload: PlayerConnectionPayload) => void;

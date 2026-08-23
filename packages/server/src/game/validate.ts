@@ -53,6 +53,8 @@ export function validateAction(state: GameState, action: GameAction): Validation
       return validateRespondTrade(state, action.playerId, action.tradeId, action.accept);
     case 'CANCEL_TRADE':
       return validateCancelTrade(state, action.playerId, action.tradeId);
+    case 'FINALIZE_TRADE':
+      return validateFinalizeTrade(state, action.playerId, action.tradeId, action.withPlayerId);
     case 'END_TURN':
       return validateEndTurn(state, action.playerId);
     default:
@@ -353,5 +355,21 @@ function validateCancelTrade(state: GameState, playerId: string, tradeId: string
   const trade = findTrade(state, tradeId);
   if (!trade) return invalid('trade not found or no longer pending');
   if (trade.proposerId !== playerId) return invalid('only the proposer can cancel this trade');
+  return VALID;
+}
+
+function validateFinalizeTrade(state: GameState, playerId: string, tradeId: string, withPlayerId: string): ValidationResult {
+  if (state.phase !== 'PLAYING' || !state.turn) return invalid('not in playing phase');
+  const trade = findTrade(state, tradeId);
+  if (!trade) return invalid('trade not found or no longer pending');
+  if (trade.proposerId !== playerId) return invalid('only the proposer can finalize this trade');
+  if (!trade.acceptedBy.includes(withPlayerId)) return invalid('that player has not accepted this trade');
+
+  const proposer = findPlayer(state, playerId);
+  const responder = findPlayer(state, withPlayerId);
+  if (!proposer || !responder) return invalid('unknown player');
+  // Re-check affordability: resources may have moved since either side accepted.
+  if (!canAfford(proposer.resources, trade.give)) return invalid('you no longer have the offered resources');
+  if (!canAfford(responder.resources, trade.request)) return invalid('the other player no longer has the requested resources');
   return VALID;
 }

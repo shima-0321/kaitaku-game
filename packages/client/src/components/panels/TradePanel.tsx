@@ -128,6 +128,12 @@ export function TradePanel() {
     })
   }
 
+  function handleFinalize(tradeId: string, withPlayerId: string) {
+    socket.emit('finalize_trade', { tradeId, withPlayerId }, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   const pendingTrades = clientState.turn?.pendingTrades ?? []
   const incomingTrades = pendingTrades.filter((t) => t.proposerId !== playerId && (t.targetId === null || t.targetId === playerId))
   const myProposedTrades = pendingTrades.filter((t) => t.proposerId === playerId)
@@ -178,8 +184,23 @@ export function TradePanel() {
           <h3>自分の提案</h3>
           {myProposedTrades.map((t) => (
             <div key={t.id} className="trade-offer">
-              <span>{describeTrade(t)}</span>
-              <button onClick={() => handleCancel(t.id)}>取り消す</button>
+              <div className="trade-offer__row">
+                <span>{describeTrade(t)}</span>
+                <button onClick={() => handleCancel(t.id)}>取り消す</button>
+              </div>
+              {t.acceptedBy.length > 0 && (
+                <div className="trade-offer__accepters">
+                  {t.acceptedBy.map((accepterId) => {
+                    const accepter = clientState.players.find((p) => p.id === accepterId)
+                    return (
+                      <div key={accepterId} className="trade-offer__accepter">
+                        <span>{accepter?.name ?? '相手'}さんが承諾済み</span>
+                        <button onClick={() => handleFinalize(t.id, accepterId)}>この人に決定</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -188,15 +209,26 @@ export function TradePanel() {
       {incomingTrades.length > 0 && (
         <div className="trade-panel__list">
           <h3>受信した提案</h3>
-          {incomingTrades.map((t) => (
-            <div key={t.id} className="trade-offer">
-              <span>{describeTrade(t)}</span>
-              <button disabled={!canAfford(me.resources, t.request)} onClick={() => handleRespond(t.id, true)}>
-                承諾
-              </button>
-              <button onClick={() => handleRespond(t.id, false)}>拒否</button>
-            </div>
-          ))}
+          {incomingTrades.map((t) => {
+            const alreadyAccepted = t.acceptedBy.includes(playerId)
+            return (
+              <div key={t.id} className="trade-offer">
+                <div className="trade-offer__row">
+                  <span>{describeTrade(t)}</span>
+                  {alreadyAccepted ? (
+                    <span className="trade-offer__waiting">承諾済み・提案者の決定待ち</span>
+                  ) : (
+                    <>
+                      <button disabled={!canAfford(me.resources, t.request)} onClick={() => handleRespond(t.id, true)}>
+                        承諾
+                      </button>
+                      <button onClick={() => handleRespond(t.id, false)}>拒否</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </section>

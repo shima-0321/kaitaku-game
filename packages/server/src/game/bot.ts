@@ -2,6 +2,7 @@ import type { GameState, Board, VertexId, EdgeId, ResourceHand, HexId } from '@c
 import { canPlaceSettlement, canPlaceRoad, canUpgradeToCity, canAfford, ROAD_COST, SETTLEMENT_COST, CITY_COST } from '@catan-online/shared';
 import { dispatch } from './dispatch.js';
 import { rollTwoDice, pickRandomResourceFromHand } from '../utils/rng.js';
+import { emitRobbedDetail } from '../socket/broadcast.js';
 import type { Room } from '../rooms/Room.js';
 import type { AppServer } from '../socket/context.js';
 
@@ -132,7 +133,10 @@ function runOneBotAction(io: AppServer, room: Room): boolean {
     const stolenResource = target ? pickRandomResourceFromHand(target.resources) : null;
     const hexId = state.board.robberHexId;
     const succeeded = dispatch(io, room, { type: 'STEAL_FROM', playerId: bot.id, targetPlayerId, stolenResource }, noop);
-    if (succeeded) io.to(room.state.roomId).emit('robbed_notice', { robberId: bot.id, victimId: targetPlayerId, hexId });
+    if (succeeded) {
+      io.to(room.state.roomId).emit('robbed_notice', { robberId: bot.id, victimId: targetPlayerId, hexId });
+      if (stolenResource) emitRobbedDetail(io, room, bot.id, targetPlayerId, stolenResource);
+    }
     return true;
   }
   if (pendingRobber) return false; // an unexpected stage -- don't spin forever

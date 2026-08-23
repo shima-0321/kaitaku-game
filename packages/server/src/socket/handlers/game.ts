@@ -2,6 +2,7 @@ import type { HandlerContext } from '../context.js';
 import { dispatch, type AckFn } from '../../game/dispatch.js';
 import { rollTwoDice, generateToken, pickRandomResourceFromHand } from '../../utils/rng.js';
 import { scheduleBotTurns } from '../../game/bot.js';
+import { emitRobbedDetail } from '../broadcast.js';
 import type { Room } from '../../rooms/Room.js';
 import type { RoomManager } from '../../rooms/RoomManager.js';
 
@@ -82,6 +83,7 @@ export function registerGameHandlers({ io, socket, roomManager }: HandlerContext
     // who-stole-from-whom is public knowledge; the resource itself is not (redactStateFor hides it)
     if (succeeded) {
       io.to(resolved.room.state.roomId).emit('robbed_notice', { robberId: resolved.playerId, victimId: targetPlayerId, hexId });
+      if (stolenResource) emitRobbedDetail(io, resolved.room, resolved.playerId, targetPlayerId, stolenResource);
     }
     afterHumanAction(resolved.room);
   });
@@ -169,6 +171,13 @@ export function registerGameHandlers({ io, socket, roomManager }: HandlerContext
     const resolved = resolvePlayerAction(roomManager, socket.id, cb);
     if (!resolved) return;
     dispatch(io, resolved.room, { type: 'CANCEL_TRADE', playerId: resolved.playerId, tradeId }, cb);
+    afterHumanAction(resolved.room);
+  });
+
+  socket.on('finalize_trade', ({ tradeId, withPlayerId }, cb) => {
+    const resolved = resolvePlayerAction(roomManager, socket.id, cb);
+    if (!resolved) return;
+    dispatch(io, resolved.room, { type: 'FINALIZE_TRADE', playerId: resolved.playerId, tradeId, withPlayerId }, cb);
     afterHumanAction(resolved.room);
   });
 

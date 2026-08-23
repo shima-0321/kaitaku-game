@@ -2,7 +2,7 @@ import buttonClickSound from '../assets/sounds/決定ボタンを押す7.mp3'
 import bgmSound from '../assets/sounds/In_the_jungle.mp3'
 import diceRollSound from '../assets/sounds/鉛筆が転がる.mp3'
 import buildSound from '../assets/sounds/木材に釘を打つ.mp3'
-import myTurnStartSound from '../assets/sounds/決定ボタンを押す3.mp3'
+import myTurnStartSound from '../assets/sounds/決定ボタンを押す4.mp3'
 import knightSound from '../assets/sounds/剣を抜く.mp3'
 import levelUpSound from '../assets/sounds/レベルアップ.mp3'
 

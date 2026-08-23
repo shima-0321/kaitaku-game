@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { DiceRolledPayload, GameSoundPayload } from '@catan-online/shared'
+import type { DiceRolledPayload, GameSoundPayload, RobbedDetailPayload } from '@catan-online/shared'
 import { socket } from '../lib/socket'
 import { useGameStore } from './useGameStore'
 import { playGameSound, SOUND_URLS } from '../lib/sound'
@@ -16,6 +16,7 @@ export function useSocketConnection() {
   const setClientState = useGameStore((s) => s.setClientState)
   const setGameOverPayload = useGameStore((s) => s.setGameOverPayload)
   const setDiceRollEvent = useGameStore((s) => s.setDiceRollEvent)
+  const setRobbedDetailEvent = useGameStore((s) => s.setRobbedDetailEvent)
 
   useEffect(() => {
     function onConnect() {
@@ -38,6 +39,9 @@ export function useSocketConnection() {
     function onGameSound(payload: GameSoundPayload) {
       playGameSound(GAME_SOUND_BY_KIND[payload.kind])
     }
+    function onRobbedDetail(payload: RobbedDetailPayload) {
+      setRobbedDetailEvent(payload)
+    }
 
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
@@ -48,6 +52,7 @@ export function useSocketConnection() {
     socket.on('dice_rolled', onDiceRolled)
     socket.on('knight_played', onKnightPlayed)
     socket.on('game_sound', onGameSound)
+    socket.on('robbed_detail', onRobbedDetail)
 
     if (!socket.connected) socket.connect()
 
@@ -61,6 +66,7 @@ export function useSocketConnection() {
       socket.off('dice_rolled', onDiceRolled)
       socket.off('knight_played', onKnightPlayed)
       socket.off('game_sound', onGameSound)
+      socket.off('robbed_detail', onRobbedDetail)
     }
-  }, [setConnected, setRoomInfo, setClientState, setGameOverPayload, setDiceRollEvent])
+  }, [setConnected, setRoomInfo, setClientState, setGameOverPayload, setDiceRollEvent, setRobbedDetailEvent])
 }

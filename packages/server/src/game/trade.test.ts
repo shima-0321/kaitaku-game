@@ -87,7 +87,7 @@ describe('player-to-player trade', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('completes a full propose -> accept flow, exchanging resources both ways', () => {
+  it('completes a full propose -> accept -> finalize flow, exchanging resources both ways', () => {
     let state = makePlayingState();
     state = {
       ...state,
@@ -123,13 +123,78 @@ describe('player-to-player trade', () => {
 
     state = applyAction(state, { type: 'RESPOND_TRADE', playerId: 'p1', tradeId: 't1', accept: true });
 
-    const p0 = state.players.find((p) => p.id === 'p0')!;
-    const p1 = state.players.find((p) => p.id === 'p1')!;
+    // Accepting only records intent -- no resources move and the offer is still pending finalization.
+    let p0 = state.players.find((p) => p.id === 'p0')!;
+    let p1 = state.players.find((p) => p.id === 'p1')!;
+    expect(p0.resources.WOOL).toBe(1);
+    expect(p1.resources.GRAIN).toBe(1);
+    expect(state.turn!.pendingTrades).toHaveLength(1);
+    expect(state.turn!.pendingTrades[0].acceptedBy).toEqual(['p1']);
+
+    const finalizeValidation = validateAction(state, { type: 'FINALIZE_TRADE', playerId: 'p0', tradeId: 't1', withPlayerId: 'p1' });
+    expect(finalizeValidation.ok).toBe(true);
+
+    state = applyAction(state, { type: 'FINALIZE_TRADE', playerId: 'p0', tradeId: 't1', withPlayerId: 'p1' });
+
+    p0 = state.players.find((p) => p.id === 'p0')!;
+    p1 = state.players.find((p) => p.id === 'p1')!;
     expect(p0.resources.WOOL).toBe(0);
     expect(p0.resources.GRAIN).toBe(1);
     expect(p1.resources.GRAIN).toBe(0);
     expect(p1.resources.WOOL).toBe(1);
     expect(state.turn!.pendingTrades).toHaveLength(0);
+  });
+
+  it('lets the proposer choose among multiple accepters on an open trade; the others are discarded', () => {
+    let state = makePlayingState();
+    state = {
+      ...state,
+      players: state.players.map((p) => {
+        if (p.id === 'p1') return { ...p, resources: { ...p.resources, GRAIN: 1 } };
+        if (p.id === 'p2') return { ...p, resources: { ...p.resources, GRAIN: 1 } };
+        return p;
+      }),
+    };
+    state = applyAction(state, {
+      type: 'PROPOSE_TRADE',
+      playerId: 'p0',
+      tradeId: 't1',
+      give: { WOOL: 1 },
+      request: { GRAIN: 1 },
+      targetPlayerId: null,
+    });
+    state = applyAction(state, { type: 'RESPOND_TRADE', playerId: 'p1', tradeId: 't1', accept: true });
+    state = applyAction(state, { type: 'RESPOND_TRADE', playerId: 'p2', tradeId: 't1', accept: true });
+    expect(state.turn!.pendingTrades[0].acceptedBy).toEqual(['p1', 'p2']);
+
+    // Finalizing with p2 must not require p1's resources at all -- p1 was never touched.
+    state = applyAction(state, { type: 'FINALIZE_TRADE', playerId: 'p0', tradeId: 't1', withPlayerId: 'p2' });
+
+    const p1 = state.players.find((p) => p.id === 'p1')!;
+    const p2 = state.players.find((p) => p.id === 'p2')!;
+    expect(p1.resources.GRAIN).toBe(1); // untouched
+    expect(p2.resources.GRAIN).toBe(0);
+    expect(p2.resources.WOOL).toBe(1);
+    expect(state.turn!.pendingTrades).toHaveLength(0);
+  });
+
+  it('only the proposer may finalize, and only with a player who actually accepted', () => {
+    let state = makePlayingState();
+    state = applyAction(state, {
+      type: 'PROPOSE_TRADE',
+      playerId: 'p0',
+      tradeId: 't1',
+      give: { WOOL: 1 },
+      request: { GRAIN: 1 },
+      targetPlayerId: null,
+    });
+    state = applyAction(state, { type: 'RESPOND_TRADE', playerId: 'p1', tradeId: 't1', accept: true });
+
+    const notProposer = validateAction(state, { type: 'FINALIZE_TRADE', playerId: 'p1', tradeId: 't1', withPlayerId: 'p1' });
+    expect(notProposer.ok).toBe(false);
+
+    const neverAccepted = validateAction(state, { type: 'FINALIZE_TRADE', playerId: 'p0', tradeId: 't1', withPlayerId: 'p2' });
+    expect(neverAccepted.ok).toBe(false);
   });
 
   it('rejects accepting when the responder cannot afford the requested side', () => {

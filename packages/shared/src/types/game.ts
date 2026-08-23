@@ -68,6 +68,9 @@ export interface TradeOffer {
   give: Partial<ResourceHand>;
   request: Partial<ResourceHand>;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+  /** Players who have signaled willingness to accept -- the resource swap doesn't happen until
+   * the proposer picks one of these via FINALIZE_TRADE (the proposer always has final say). */
+  acceptedBy: string[];
 }
 
 export interface TurnState {

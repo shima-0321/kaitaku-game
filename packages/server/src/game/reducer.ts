@@ -415,6 +415,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           give: action.give,
           request: action.request,
           status: 'PENDING',
+          acceptedBy: [],
         });
         addLog(draft, `${playerName(draft, action.playerId)} proposed a trade.`);
       });
@@ -423,23 +424,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return produce(state, (draft) => {
         const trade = draft.turn!.pendingTrades.find((t) => t.id === action.tradeId)!;
         if (action.accept) {
-          const proposer = draft.players.find((p) => p.id === trade.proposerId)!;
-          const responder = draft.players.find((p) => p.id === action.playerId)!;
-          for (const key of Object.keys(trade.give) as (keyof ResourceHand)[]) {
-            const amount = trade.give[key] ?? 0;
-            proposer.resources[key] -= amount;
-            responder.resources[key] += amount;
-            trackGain(draft, action.playerId, key, amount);
-          }
-          for (const key of Object.keys(trade.request) as (keyof ResourceHand)[]) {
-            const amount = trade.request[key] ?? 0;
-            responder.resources[key] -= amount;
-            proposer.resources[key] += amount;
-            trackGain(draft, trade.proposerId, key, amount);
-          }
-          addLog(draft, `${playerName(draft, action.playerId)} accepted a trade from ${playerName(draft, trade.proposerId)}.`);
-          draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== action.tradeId);
+          // Resources don't move yet -- the proposer still has to pick a partner via FINALIZE_TRADE.
+          if (!trade.acceptedBy.includes(action.playerId)) trade.acceptedBy.push(action.playerId);
+          addLog(draft, `${playerName(draft, action.playerId)} is willing to accept a trade from ${playerName(draft, trade.proposerId)}.`);
         } else {
+          trade.acceptedBy = trade.acceptedBy.filter((id) => id !== action.playerId);
           addLog(draft, `${playerName(draft, action.playerId)} rejected a trade.`);
           // A 1:1 offer ends on rejection; an open offer (targetId === null) stays available for others.
           if (trade.targetId !== null) {
@@ -452,6 +441,27 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return produce(state, (draft) => {
         draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== action.tradeId);
         addLog(draft, `${playerName(draft, action.playerId)} cancelled a trade.`);
+      });
+
+    case 'FINALIZE_TRADE':
+      return produce(state, (draft) => {
+        const trade = draft.turn!.pendingTrades.find((t) => t.id === action.tradeId)!;
+        const proposer = draft.players.find((p) => p.id === trade.proposerId)!;
+        const responder = draft.players.find((p) => p.id === action.withPlayerId)!;
+        for (const key of Object.keys(trade.give) as (keyof ResourceHand)[]) {
+          const amount = trade.give[key] ?? 0;
+          proposer.resources[key] -= amount;
+          responder.resources[key] += amount;
+          trackGain(draft, action.withPlayerId, key, amount);
+        }
+        for (const key of Object.keys(trade.request) as (keyof ResourceHand)[]) {
+          const amount = trade.request[key] ?? 0;
+          responder.resources[key] -= amount;
+          proposer.resources[key] += amount;
+          trackGain(draft, trade.proposerId, key, amount);
+        }
+        addLog(draft, `${playerName(draft, trade.proposerId)} finalized a trade with ${playerName(draft, action.withPlayerId)}.`);
+        draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== action.tradeId);
       });
 
     case 'END_TURN':

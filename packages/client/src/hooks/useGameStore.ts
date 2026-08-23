@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ClientGameState, RoomUpdatedPayload, GameOverPayload, DiceRolledPayload } from '@catan-online/shared'
+import type { ClientGameState, RoomUpdatedPayload, GameOverPayload, DiceRolledPayload, RobbedDetailPayload } from '@catan-online/shared'
 
 interface GameStore {
   connected: boolean
@@ -10,6 +10,7 @@ interface GameStore {
   lastError: string | null
   gameOverPayload: GameOverPayload | null
   diceRollEvent: DiceRolledPayload | null
+  robbedDetailEvent: RobbedDetailPayload | null
 
   setConnected: (connected: boolean) => void
   setRoomInfo: (info: RoomUpdatedPayload) => void
@@ -18,6 +19,7 @@ interface GameStore {
   setLastError: (message: string | null) => void
   setGameOverPayload: (payload: GameOverPayload) => void
   setDiceRollEvent: (payload: DiceRolledPayload) => void
+  setRobbedDetailEvent: (payload: RobbedDetailPayload) => void
   reset: () => void
 }
 
@@ -30,6 +32,7 @@ export const useGameStore = create<GameStore>((set) => ({
   lastError: null,
   gameOverPayload: null,
   diceRollEvent: null,
+  robbedDetailEvent: null,
 
   setConnected: (connected) => set({ connected }),
   setRoomInfo: (roomInfo) => set({ roomInfo }),
@@ -38,6 +41,16 @@ export const useGameStore = create<GameStore>((set) => ({
   setLastError: (lastError) => set({ lastError }),
   setGameOverPayload: (gameOverPayload) => set({ gameOverPayload }),
   setDiceRollEvent: (diceRollEvent) => set({ diceRollEvent }),
+  setRobbedDetailEvent: (robbedDetailEvent) => set({ robbedDetailEvent }),
   reset: () =>
-    set({ roomInfo: null, clientState: null, playerId: null, roomCode: null, lastError: null, gameOverPayload: null, diceRollEvent: null }),
+    set({
+      roomInfo: null,
+      clientState: null,
+      playerId: null,
+      roomCode: null,
+      lastError: null,
+      gameOverPayload: null,
+      diceRollEvent: null,
+      robbedDetailEvent: null,
+    }),
 }))

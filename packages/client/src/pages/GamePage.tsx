@@ -21,6 +21,7 @@ import { TradePanel } from '../components/panels/TradePanel'
 import { DevCardPanel } from '../components/panels/DevCardPanel'
 import { DiscardModal } from '../components/modals/DiscardModal'
 import { StealTargetModal } from '../components/modals/StealTargetModal'
+import { IncomingTradeModal } from '../components/modals/IncomingTradeModal'
 import { YearOfPlentyModal } from '../components/modals/YearOfPlentyModal'
 import { MonopolyModal } from '../components/modals/MonopolyModal'
 import { GameOverModal } from '../components/modals/GameOverModal'
@@ -58,12 +59,37 @@ export function GamePage() {
 
   const isMyTurnForSound = clientState?.phase === 'PLAYING' && clientState?.turn?.currentPlayerId === playerId
   const prevIsMyTurnRef = useRef<boolean | null>(null)
+  const [showTurnBanner, setShowTurnBanner] = useState(false)
   useEffect(() => {
     if (prevIsMyTurnRef.current === false && isMyTurnForSound) {
       playGameSound(SOUND_URLS.myTurnStart)
+      setShowTurnBanner(true)
+      const timer = setTimeout(() => setShowTurnBanner(false), 2200)
+      prevIsMyTurnRef.current = isMyTurnForSound
+      return () => clearTimeout(timer)
     }
     prevIsMyTurnRef.current = isMyTurnForSound
   }, [isMyTurnForSound])
+
+  const robbedDetailEvent = useGameStore((s) => s.robbedDetailEvent)
+  const prevRobbedDetailEventRef = useRef<typeof robbedDetailEvent>(null)
+  const [robBanner, setRobBanner] = useState<{ text: string; variant: 'rob' | 'robbed' } | null>(null)
+  useEffect(() => {
+    if (!robbedDetailEvent || robbedDetailEvent === prevRobbedDetailEventRef.current) return
+    prevRobbedDetailEventRef.current = robbedDetailEvent
+    if (!playerId || !clientState) return
+    const isRobber = robbedDetailEvent.robberId === playerId
+    const isVictim = robbedDetailEvent.victimId === playerId
+    if (!isRobber && !isVictim) return
+    const otherId = isRobber ? robbedDetailEvent.victimId : robbedDetailEvent.robberId
+    const allPlayers = clientState.me ? [clientState.me, ...clientState.players] : clientState.players
+    const otherName = allPlayers.find((p) => p.id === otherId)?.name ?? '相手'
+    const resourceLabel = RESOURCE_LABELS_JA[robbedDetailEvent.resource]
+    const text = isRobber ? `${otherName}から${resourceLabel}を奪いました！` : `${otherName}に${resourceLabel}を奪われました…`
+    setRobBanner({ text, variant: isRobber ? 'rob' : 'robbed' })
+    const timer = setTimeout(() => setRobBanner(null), 2200)
+    return () => clearTimeout(timer)
+  }, [robbedDetailEvent, playerId, clientState])
 
   const playerColorById = useMemo(() => {
     const map: Record<string, string> = {}
@@ -252,11 +278,14 @@ export function GamePage() {
   }
 
   return (
-    <div className="game-page">
+    <div className={isMyTurn ? 'game-page game-page--my-turn' : 'game-page'}>
+      {showTurnBanner && <div className="turn-banner">あなたの番です！</div>}
+      {robBanner && <div className={`turn-banner turn-banner--${robBanner.variant}`}>{robBanner.text}</div>}
       {myDiscardRequired > 0 && <DiscardModal required={myDiscardRequired} />}
       {isSelectTargetStage && pendingRobber?.eligibleStealTargets && (
         <StealTargetModal eligiblePlayerIds={pendingRobber.eligibleStealTargets} />
       )}
+      <IncomingTradeModal />
       {yearOfPlentyDevCardId && (
         <YearOfPlentyModal devCardId={yearOfPlentyDevCardId} onClose={() => setYearOfPlentyDevCardId(null)} />
       )}
@@ -293,7 +322,11 @@ export function GamePage() {
           <h2>プレイヤー</h2>
           <ul>
             {[me, ...clientState.players].map((p) => (
-              <li key={p.id} style={{ color: PLAYER_COLOR_HEX[p.color] }}>
+              <li
+                key={p.id}
+                style={{ color: PLAYER_COLOR_HEX[p.color] }}
+                className={clientState.turn?.currentPlayerId === p.id ? 'player-summary-list__current' : ''}
+              >
                 {p.isBot && '\u{1F916} '}
                 {p.name}
                 {clientState.turn?.currentPlayerId === p.id && ' ▶'}
@@ -353,9 +386,9 @@ export function GamePage() {
             {pendingRobber.stage === 'DISCARD' &&
               (myDiscardRequired > 0 ? <p>カードを{myDiscardRequired}枚捨ててください</p> : <p>他のプレイヤーの捨て札を待っています…</p>)}
             {pendingRobber.stage === 'MOVE_ROBBER' &&
-              (isMoveRobberStage ? <p>強盗を移動するタイルを選んでください</p> : <p>強盗の移動を待っています…</p>)}
+              (isMoveRobberStage ? <p>盗賊を移動するタイルを選んでください</p> : <p>盗賊の移動を待っています…</p>)}
             {pendingRobber.stage === 'SELECT_TARGET' &&
-              (isSelectTargetStage ? <p>誰から奪うか選んでください</p> : <p>強盗の対象選択を待っています…</p>)}
+              (isSelectTargetStage ? <p>誰から奪うか選んでください</p> : <p>盗賊の対象選択を待っています…</p>)}
           </section>
         )}
 
