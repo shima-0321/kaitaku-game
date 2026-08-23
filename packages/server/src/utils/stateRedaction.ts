@@ -1,6 +1,6 @@
 import type { GameState, ClientGameState, PublicPlayerView, PrivatePlayerView } from '@catan-online/shared';
 import { totalResources } from '@catan-online/shared';
-import { calculateVisibleVictoryPoints } from '../game/scoring.js';
+import { calculateVisibleVictoryPoints, calculateTotalVictoryPoints } from '../game/scoring.js';
 
 function toPublicView(state: GameState, playerId: string): PublicPlayerView {
   const player = state.players.find((p) => p.id === playerId)!;
@@ -35,6 +35,7 @@ export function redactStateFor(state: GameState, viewerPlayerId: string): Client
     ...toPublicView(state, viewerPlayerId),
     resources: me.resources,
     devCards: me.devCards,
+    totalVictoryPoints: calculateTotalVictoryPoints(state, viewerPlayerId),
   };
 
   return {

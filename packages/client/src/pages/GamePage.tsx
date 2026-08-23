@@ -22,6 +22,7 @@ import { DevCardPanel } from '../components/panels/DevCardPanel'
 import { DiscardModal } from '../components/modals/DiscardModal'
 import { StealTargetModal } from '../components/modals/StealTargetModal'
 import { IncomingTradeModal } from '../components/modals/IncomingTradeModal'
+import { FinalizeTradeModal } from '../components/modals/FinalizeTradeModal'
 import { YearOfPlentyModal } from '../components/modals/YearOfPlentyModal'
 import { MonopolyModal } from '../components/modals/MonopolyModal'
 import { GameOverModal } from '../components/modals/GameOverModal'
@@ -286,6 +287,7 @@ export function GamePage() {
         <StealTargetModal eligiblePlayerIds={pendingRobber.eligibleStealTargets} />
       )}
       <IncomingTradeModal />
+      <FinalizeTradeModal />
       {yearOfPlentyDevCardId && (
         <YearOfPlentyModal devCardId={yearOfPlentyDevCardId} onClose={() => setYearOfPlentyDevCardId(null)} />
       )}
@@ -331,7 +333,7 @@ export function GamePage() {
                 {p.name}
                 {clientState.turn?.currentPlayerId === p.id && ' ▶'}
                 {' - 得点 '}
-                {p.visibleVictoryPoints}
+                {p.id === me.id ? me.totalVictoryPoints : p.visibleVictoryPoints}
                 {' / 資源 '}
                 {p.resourceCount}
                 {' / 騎士 '}

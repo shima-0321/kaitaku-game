@@ -135,6 +135,9 @@ export function HexBoard({
             />
             {/* lighten the photo so player pieces/roads stay readable on top of it */}
             <polygon points={points} fill="#ffffff" opacity={0.38} style={{ pointerEvents: 'none' }} />
+            {/* darken the whole tile to mark the robber's tile, instead of a token that would sit on
+                top of the number and hide it -- the terrain name and number stay fully readable */}
+            {isRobber && <polygon points={points} fill="#000000" opacity={0.4} style={{ pointerEvents: 'none' }} />}
             <text
               x={center.x}
               y={center.y - 22}
@@ -145,11 +148,14 @@ export function HexBoard({
               stroke="#fff"
               strokeWidth={3}
               paintOrder="stroke"
+              style={{ pointerEvents: 'none' }}
             >
               {TERRAIN_LABELS[tile.terrain]}
             </text>
             {tile.numberToken && (
-              <g>
+              // pointer-events: none so a click aimed at a tile's center (where this badge sits)
+              // still reaches the tile polygon underneath instead of being silently swallowed
+              <g style={{ pointerEvents: 'none' }}>
                 {isRolledNumber && (
                   <circle cx={center.x} cy={center.y} r={20} fill="none" stroke="#ffd600" strokeWidth={3} className="number-token-glow" />
                 )}
@@ -180,7 +186,6 @@ export function HexBoard({
                 })()}
               </g>
             )}
-            {isRobber && <circle cx={center.x} cy={center.y} r={12} fill="#333" stroke="#fff" strokeWidth={2} />}
           </g>
         )
       })}

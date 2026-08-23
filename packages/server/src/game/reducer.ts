@@ -1,5 +1,5 @@
 import { produce } from 'immer';
-import type { GameState, ResourceHand } from '@catan-online/shared';
+import type { GameState, ResourceHand, TradeOffer } from '@catan-online/shared';
 import {
   TERRAIN_RESOURCE,
   RESOURCE_LABELS_JA,
@@ -42,6 +42,26 @@ function trackGain(draft: GameState, playerId: string, resource: keyof ResourceH
   if (amount <= 0) return;
   const player = draft.players.find((p) => p.id === playerId)!;
   player.stats.resourcesGained[resource] += amount;
+}
+
+/** Swaps the resources for an accepted trade and removes it from the pending list. Shared by the
+ * immediate-settle path (accepting a targeted offer) and FINALIZE_TRADE (the proposer's explicit pick). */
+function settleTrade(draft: GameState, trade: TradeOffer, withPlayerId: string) {
+  const proposer = draft.players.find((p) => p.id === trade.proposerId)!;
+  const responder = draft.players.find((p) => p.id === withPlayerId)!;
+  for (const key of Object.keys(trade.give) as (keyof ResourceHand)[]) {
+    const amount = trade.give[key] ?? 0;
+    proposer.resources[key] -= amount;
+    responder.resources[key] += amount;
+    trackGain(draft, withPlayerId, key, amount);
+  }
+  for (const key of Object.keys(trade.request) as (keyof ResourceHand)[]) {
+    const amount = trade.request[key] ?? 0;
+    responder.resources[key] -= amount;
+    proposer.resources[key] += amount;
+    trackGain(draft, trade.proposerId, key, amount);
+  }
+  draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== trade.id);
 }
 
 function refreshLongestRoad(draft: GameState) {
@@ -424,9 +444,16 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return produce(state, (draft) => {
         const trade = draft.turn!.pendingTrades.find((t) => t.id === action.tradeId)!;
         if (action.accept) {
-          // Resources don't move yet -- the proposer still has to pick a partner via FINALIZE_TRADE.
           if (!trade.acceptedBy.includes(action.playerId)) trade.acceptedBy.push(action.playerId);
-          addLog(draft, `${playerName(draft, action.playerId)} is willing to accept a trade from ${playerName(draft, trade.proposerId)}.`);
+          // A targeted (1:1) offer can only ever have one possible acceptor, so there's nothing for
+          // the proposer to choose between -- settle it immediately, same as before FINALIZE_TRADE
+          // existed. An open offer (targetId === null) could still draw more accepters, so it waits.
+          if (trade.targetId !== null) {
+            addLog(draft, `${playerName(draft, action.playerId)} accepted a trade from ${playerName(draft, trade.proposerId)}.`);
+            settleTrade(draft, trade, action.playerId);
+          } else {
+            addLog(draft, `${playerName(draft, action.playerId)} is willing to accept a trade from ${playerName(draft, trade.proposerId)}.`);
+          }
         } else {
           trade.acceptedBy = trade.acceptedBy.filter((id) => id !== action.playerId);
           addLog(draft, `${playerName(draft, action.playerId)} rejected a trade.`);
@@ -446,22 +473,8 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case 'FINALIZE_TRADE':
       return produce(state, (draft) => {
         const trade = draft.turn!.pendingTrades.find((t) => t.id === action.tradeId)!;
-        const proposer = draft.players.find((p) => p.id === trade.proposerId)!;
-        const responder = draft.players.find((p) => p.id === action.withPlayerId)!;
-        for (const key of Object.keys(trade.give) as (keyof ResourceHand)[]) {
-          const amount = trade.give[key] ?? 0;
-          proposer.resources[key] -= amount;
-          responder.resources[key] += amount;
-          trackGain(draft, action.withPlayerId, key, amount);
-        }
-        for (const key of Object.keys(trade.request) as (keyof ResourceHand)[]) {
-          const amount = trade.request[key] ?? 0;
-          responder.resources[key] -= amount;
-          proposer.resources[key] += amount;
-          trackGain(draft, trade.proposerId, key, amount);
-        }
         addLog(draft, `${playerName(draft, trade.proposerId)} finalized a trade with ${playerName(draft, action.withPlayerId)}.`);
-        draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== action.tradeId);
+        settleTrade(draft, trade, action.withPlayerId);
       });
 
     case 'END_TURN':

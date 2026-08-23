@@ -1,4 +1,4 @@
-import type { GameState, Player } from '@catan-online/shared';
+import type { GameState, Player, ScoreBreakdown } from '@catan-online/shared';
 
 export function countSettlements(state: GameState, playerId: string): number {
   return Object.values(state.board.vertices).filter(
@@ -29,4 +29,23 @@ export function calculateTotalVictoryPoints(state: GameState, playerId: string):
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return 0;
   return calculateVisibleVictoryPoints(state, playerId) + countVictoryPointCards(player);
+}
+
+/** Itemized point sources, revealed to everyone once the game has ended -- there's no more
+ * strategic reason to keep an opponent's hidden VP dev cards secret at that point. */
+export function calculateScoreBreakdown(state: GameState, playerId: string): ScoreBreakdown {
+  const player = state.players.find((p) => p.id === playerId);
+  const settlements = countSettlements(state, playerId);
+  const cities = countCities(state, playerId);
+  const hasLongestRoad = state.longestRoadPlayerId === playerId;
+  const hasLargestArmy = state.largestArmyPlayerId === playerId;
+  const victoryPointCards = player ? countVictoryPointCards(player) : 0;
+  return {
+    settlements,
+    cities,
+    hasLongestRoad,
+    hasLargestArmy,
+    victoryPointCards,
+    total: settlements + cities * 2 + (hasLongestRoad ? 2 : 0) + (hasLargestArmy ? 2 : 0) + victoryPointCards,
+  };
 }

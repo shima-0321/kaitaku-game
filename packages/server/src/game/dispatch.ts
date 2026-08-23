@@ -3,7 +3,7 @@ import type { GameAction } from './actions.js';
 import { validateAction } from './validate.js';
 import { applyAction } from './reducer.js';
 import { broadcastState } from '../socket/broadcast.js';
-import { calculateTotalVictoryPoints } from './scoring.js';
+import { calculateTotalVictoryPoints, calculateScoreBreakdown } from './scoring.js';
 import type { Room } from '../rooms/Room.js';
 import type { AppServer } from '../socket/context.js';
 
@@ -28,6 +28,7 @@ export function dispatch(io: AppServer, room: Room, action: GameAction, cb: AckF
     const finalScores = room.state.players.map((p) => ({
       playerId: p.id,
       points: calculateTotalVictoryPoints(room.state, p.id),
+      breakdown: calculateScoreBreakdown(room.state, p.id),
     }));
     io.to(room.state.roomId).emit('game_over', { winnerId: room.state.winnerId, finalScores });
   }

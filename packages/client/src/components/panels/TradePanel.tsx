@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ResourceHand, ResourceType, TradeOffer } from '@catan-online/shared'
 import { calculateTradeRatios, canAfford, RESOURCE_LABELS_JA as RESOURCE_LABELS } from '@catan-online/shared'
 import { socket } from '../../lib/socket'
@@ -85,6 +85,17 @@ export function TradePanel() {
   const [proposeRequest, setProposeRequest] = useState<Hand>(emptyHand())
   const [targetPlayerId, setTargetPlayerId] = useState<string>('')
 
+  // Clear the picker counts whenever the turn changes (start or end) -- otherwise a number picked
+  // while proposing a trade on one turn stays selected and silently carries into the next turn's offer.
+  const turnNumber = clientState?.turn?.turnNumber
+  useEffect(() => {
+    setBankGive(emptyHand())
+    setBankReceive(emptyHand())
+    setProposeGive(emptyHand())
+    setProposeRequest(emptyHand())
+    setTargetPlayerId('')
+  }, [turnNumber])
+
   if (!clientState || !playerId) return null
 
   const me = clientState.me
@@ -124,12 +135,6 @@ export function TradePanel() {
 
   function handleCancel(tradeId: string) {
     socket.emit('cancel_trade', { tradeId }, (ack) => {
-      if (!ack.ok) setLastError(ack.error)
-    })
-  }
-
-  function handleFinalize(tradeId: string, withPlayerId: string) {
-    socket.emit('finalize_trade', { tradeId, withPlayerId }, (ack) => {
       if (!ack.ok) setLastError(ack.error)
     })
   }
@@ -192,12 +197,8 @@ export function TradePanel() {
                 <div className="trade-offer__accepters">
                   {t.acceptedBy.map((accepterId) => {
                     const accepter = clientState.players.find((p) => p.id === accepterId)
-                    return (
-                      <div key={accepterId} className="trade-offer__accepter">
-                        <span>{accepter?.name ?? '相手'}さんが承諾済み</span>
-                        <button onClick={() => handleFinalize(t.id, accepterId)}>この人に決定</button>
-                      </div>
-                    )
+                    // The actual pick happens in the big FinalizeTradeModal popup, not here.
+                    return <span key={accepterId}>{accepter?.name ?? '相手'}さんが承諾済み</span>
                   })}
                 </div>
               )}

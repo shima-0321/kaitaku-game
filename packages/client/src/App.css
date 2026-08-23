@@ -670,8 +670,6 @@ button.active {
   gap: 8px;
 }
 .game-over-modal__scores li {
-  display: flex;
-  justify-content: space-between;
   padding: 6px 10px;
   border-radius: 6px;
   background: var(--code-bg);
@@ -679,6 +677,17 @@ button.active {
 .game-over-modal__scores li.winner {
   background: var(--accent-bg);
   font-weight: bold;
+}
+.game-over-modal__score-row {
+  display: flex;
+  justify-content: space-between;
+}
+.game-over-modal__score-breakdown {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: normal;
+  opacity: 0.75;
+  text-align: left;
 }
 
 .game-over-modal {

@@ -133,6 +133,17 @@ export interface PublicPlayerView {
 export interface PrivatePlayerView extends PublicPlayerView {
   resources: ResourceHand;
   devCards: DevCard[];
+  /** visibleVictoryPoints plus hidden VP dev cards -- only ever sent for the viewer's own player. */
+  totalVictoryPoints: number;
+}
+
+export interface ScoreBreakdown {
+  settlements: number;
+  cities: number;
+  hasLongestRoad: boolean;
+  hasLargestArmy: boolean;
+  victoryPointCards: number;
+  total: number;
 }
 
 export interface ClientBank {

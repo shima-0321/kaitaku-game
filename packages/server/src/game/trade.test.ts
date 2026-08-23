@@ -87,7 +87,7 @@ describe('player-to-player trade', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('completes a full propose -> accept -> finalize flow, exchanging resources both ways', () => {
+  it('settles a targeted (1:1) trade immediately on accept -- only one player could ever accept it, so there is nothing for the proposer to choose between', () => {
     let state = makePlayingState();
     state = {
       ...state,
@@ -123,7 +123,37 @@ describe('player-to-player trade', () => {
 
     state = applyAction(state, { type: 'RESPOND_TRADE', playerId: 'p1', tradeId: 't1', accept: true });
 
-    // Accepting only records intent -- no resources move and the offer is still pending finalization.
+    const p0 = state.players.find((p) => p.id === 'p0')!;
+    const p1 = state.players.find((p) => p.id === 'p1')!;
+    expect(p0.resources.WOOL).toBe(0);
+    expect(p0.resources.GRAIN).toBe(1);
+    expect(p1.resources.GRAIN).toBe(0);
+    expect(p1.resources.WOOL).toBe(1);
+    expect(state.turn!.pendingTrades).toHaveLength(0);
+  });
+
+  it('holds an open trade for the proposer to finalize, even with only one accepter so far', () => {
+    let state = makePlayingState();
+    state = {
+      ...state,
+      players: state.players.map((p) => {
+        if (p.id === 'p0') return { ...p, resources: { ...p.resources, WOOL: 1 } };
+        if (p.id === 'p1') return { ...p, resources: { ...p.resources, GRAIN: 1 } };
+        return p;
+      }),
+    };
+    state = applyAction(state, {
+      type: 'PROPOSE_TRADE',
+      playerId: 'p0',
+      tradeId: 't1',
+      give: { WOOL: 1 },
+      request: { GRAIN: 1 },
+      targetPlayerId: null,
+    });
+    state = applyAction(state, { type: 'RESPOND_TRADE', playerId: 'p1', tradeId: 't1', accept: true });
+
+    // Accepting only records intent -- no resources move and the offer is still pending finalization,
+    // since an open offer could still draw a second accepter at any moment.
     let p0 = state.players.find((p) => p.id === 'p0')!;
     let p1 = state.players.find((p) => p.id === 'p1')!;
     expect(p0.resources.WOOL).toBe(1);

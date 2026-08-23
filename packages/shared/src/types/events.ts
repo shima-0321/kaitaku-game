@@ -1,4 +1,4 @@
-import type { ClientGameState, ResourceHand } from './game.js';
+import type { ClientGameState, ResourceHand, ScoreBreakdown } from './game.js';
 import type { HexId, VertexId, EdgeId, ResourceType } from './board.js';
 
 export type AckOkWith<T = unknown> = { ok: true } & T;
@@ -154,7 +154,7 @@ export interface PlayerConnectionPayload {
 }
 export interface GameOverPayload {
   winnerId: string;
-  finalScores: { playerId: string; points: number }[];
+  finalScores: { playerId: string; points: number; breakdown: ScoreBreakdown }[];
 }
 export interface ErrorToastPayload {
   message: string;

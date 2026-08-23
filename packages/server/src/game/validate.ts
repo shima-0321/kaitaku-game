@@ -346,6 +346,12 @@ function validateRespondTrade(state: GameState, playerId: string, tradeId: strin
     const responder = findPlayer(state, playerId);
     if (!responder) return invalid('unknown player');
     if (!canAfford(responder.resources, trade.request)) return invalid('you do not have the requested resources');
+    // A targeted (1:1) offer settles immediately on accept -- re-check the proposer's side too,
+    // since their resources may have moved since they proposed it.
+    if (trade.targetId !== null) {
+      const proposer = findPlayer(state, trade.proposerId);
+      if (!proposer || !canAfford(proposer.resources, trade.give)) return invalid('the proposer no longer has the offered resources');
+    }
   }
   return VALID;
 }

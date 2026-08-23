@@ -1,9 +1,19 @@
 import { useNavigate } from 'react-router-dom'
-import type { DevCardType } from '@catan-online/shared'
+import type { DevCardType, ScoreBreakdown } from '@catan-online/shared'
 import { RESOURCE_LABELS_JA } from '@catan-online/shared'
 import { useGameStore } from '../../hooks/useGameStore'
 import { socket } from '../../lib/socket'
 import { PLAYER_COLOR_HEX } from '../../lib/colors'
+
+function formatBreakdown(b: ScoreBreakdown): string {
+  const parts: string[] = []
+  if (b.settlements > 0) parts.push(`開拓地${b.settlements}(${b.settlements}点)`)
+  if (b.cities > 0) parts.push(`都市${b.cities}(${b.cities * 2}点)`)
+  if (b.hasLongestRoad) parts.push('最長交易路(2点)')
+  if (b.hasLargestArmy) parts.push('最大騎士力(2点)')
+  if (b.victoryPointCards > 0) parts.push(`勝利点カード${b.victoryPointCards}(${b.victoryPointCards}点)`)
+  return parts.join(' + ') || 'なし'
+}
 
 const DEV_CARD_LABELS_JA: Record<DevCardType, string> = {
   KNIGHT: '騎士',
@@ -27,7 +37,8 @@ export function GameOverModal() {
   const winnerName = winnerId ? (nameById[winnerId] ?? '不明') : '不明'
   const isHost = clientState.hostPlayerId === playerId
 
-  const scores = gameOverPayload?.finalScores ?? allPlayers.map((p) => ({ playerId: p.id, points: p.visibleVictoryPoints }))
+  const scores: { playerId: string; points: number; breakdown?: ScoreBreakdown }[] =
+    gameOverPayload?.finalScores ?? allPlayers.map((p) => ({ playerId: p.id, points: p.visibleVictoryPoints }))
   const sortedScores = [...scores].sort((a, b) => b.points - a.points)
 
   function handleRematch() {
@@ -47,8 +58,11 @@ export function GameOverModal() {
         <ul className="game-over-modal__scores">
           {sortedScores.map((s) => (
             <li key={s.playerId} className={s.playerId === winnerId ? 'winner' : ''}>
-              <span>{nameById[s.playerId] ?? '不明'}</span>
-              <span>{s.points}点</span>
+              <div className="game-over-modal__score-row">
+                <span>{nameById[s.playerId] ?? '不明'}</span>
+                <span>{s.points}点</span>
+              </div>
+              {s.breakdown && <div className="game-over-modal__score-breakdown">{formatBreakdown(s.breakdown)}</div>}
             </li>
           ))}
         </ul>
