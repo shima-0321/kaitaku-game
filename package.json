@@ -1,0 +1,20 @@
+{
+  "name": "catan-online",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n shared,server,client -c yellow,blue,green \"npm run dev -w @catan-online/shared\" \"npm run dev -w @catan-online/server\" \"npm run dev -w @catan-online/client\"",
+    "build": "npm run build -w @catan-online/shared && npm run build -w @catan-online/server && npm run build -w @catan-online/client",
+    "start": "npm run start -w @catan-online/server",
+    "test": "npm run test -w @catan-online/shared -w @catan-online/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,25 @@
+import type { AppServer } from './context.js';
+import type { Room } from '../rooms/Room.js';
+import { redactStateFor } from '../utils/stateRedaction.js';
+
+/** Sends each connected socket its own redacted view -- never a single shared broadcast payload. */
+export function broadcastState(io: AppServer, room: Room, event: 'game_started' | 'state_update') {
+  for (const [socketId, playerId] of room.socketIdToPlayerId) {
+    const clientState = redactStateFor(room.state, playerId);
+    io.to(socketId).emit(event, clientState);
+  }
+}
+
+export function broadcastRoomUpdated(io: AppServer, room: Room) {
+  io.to(room.state.roomId).emit('room_updated', {
+    roomCode: room.state.roomCode,
+    hostPlayerId: room.state.hostPlayerId,
+    players: room.state.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      connected: p.connected,
+      isHost: p.id === room.state.hostPlayerId,
+      isBot: p.isBot,
+    })),
+  });
+}
