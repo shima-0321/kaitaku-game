@@ -1,15 +1,6 @@
 import { socket } from '../../lib/socket'
 import { useGameStore } from '../../hooks/useGameStore'
-import { DEV_CARD_COST, canAfford } from '@catan-online/shared'
-import type { DevCardType } from '@catan-online/shared'
-
-const DEV_CARD_LABELS: Record<DevCardType, string> = {
-  KNIGHT: '騎士',
-  ROAD_BUILDING: '街道建設',
-  YEAR_OF_PLENTY: '発明',
-  MONOPOLY: '独占',
-  VICTORY_POINT: '勝利点',
-}
+import { DEV_CARD_COST, canAfford, DEV_CARD_LABELS_JA as DEV_CARD_LABELS } from '@catan-online/shared'
 
 export interface DevCardPanelProps {
   roadBuildingDevCardId: string | null

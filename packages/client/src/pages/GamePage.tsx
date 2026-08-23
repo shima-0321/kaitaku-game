@@ -92,6 +92,27 @@ export function GamePage() {
     return () => clearTimeout(timer)
   }, [robbedDetailEvent, playerId, clientState])
 
+  // Every game-log line pops up as a brief toast too, so players can follow what's happening
+  // without having to keep an eye on the log panel. Skipped on first load/reconnect (the whole
+  // history would otherwise flood in as toasts) and capped so a burst of actions doesn't pile up forever.
+  const [actionToasts, setActionToasts] = useState<{ id: string; message: string }[]>([])
+  const seenLogIdsRef = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (!clientState) return
+    if (seenLogIdsRef.current === null) {
+      seenLogIdsRef.current = new Set(clientState.log.map((e) => e.id))
+      return
+    }
+    const seen = seenLogIdsRef.current
+    const newEntries = clientState.log.filter((e) => !seen.has(e.id))
+    if (newEntries.length === 0) return
+    for (const e of newEntries) seen.add(e.id)
+    setActionToasts((prev) => [...prev, ...newEntries.map((e) => ({ id: e.id, message: e.message }))].slice(-4))
+    for (const e of newEntries) {
+      setTimeout(() => setActionToasts((prev) => prev.filter((t) => t.id !== e.id)), 3200)
+    }
+  }, [clientState])
+
   const playerColorById = useMemo(() => {
     const map: Record<string, string> = {}
     if (!clientState) return map
@@ -282,6 +303,13 @@ export function GamePage() {
     <div className={isMyTurn ? 'game-page game-page--my-turn' : 'game-page'}>
       {showTurnBanner && <div className="turn-banner">あなたの番です！</div>}
       {robBanner && <div className={`turn-banner turn-banner--${robBanner.variant}`}>{robBanner.text}</div>}
+      <div className="action-toast-stack">
+        {actionToasts.map((t) => (
+          <div key={t.id} className="action-toast">
+            {t.message}
+          </div>
+        ))}
+      </div>
       {myDiscardRequired > 0 && <DiscardModal required={myDiscardRequired} />}
       {isSelectTargetStage && pendingRobber?.eligibleStealTargets && (
         <StealTargetModal eligiblePlayerIds={pendingRobber.eligibleStealTargets} />
@@ -454,8 +482,7 @@ export function GamePage() {
         <section className="game-log">
           <h2>ログ</h2>
           <ul>
-            {clientState.log
-              .slice(-10)
+            {[...clientState.log]
               .reverse()
               .map((entry) => (
                 <li key={entry.id}>{entry.message}</li>

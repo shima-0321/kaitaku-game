@@ -138,6 +138,14 @@ export function HexBoard({
             {/* darken the whole tile to mark the robber's tile, instead of a token that would sit on
                 top of the number and hide it -- the terrain name and number stay fully readable */}
             {isRobber && <polygon points={points} fill="#000000" opacity={0.4} style={{ pointerEvents: 'none' }} />}
+            {/* red X across the tile, corner-to-corner between the flat top edge and flat bottom edge
+                (corners[4]/[5] are the top-left/top-right corners, corners[1]/[2] the bottom-right/bottom-left) */}
+            {isRobber && (
+              <g style={{ pointerEvents: 'none' }}>
+                <line x1={corners[4].x} y1={corners[4].y} x2={corners[1].x} y2={corners[1].y} stroke="#e53935" strokeWidth={5} strokeLinecap="round" />
+                <line x1={corners[5].x} y1={corners[5].y} x2={corners[2].x} y2={corners[2].y} stroke="#e53935" strokeWidth={5} strokeLinecap="round" />
+              </g>
+            )}
             <text
               x={center.x}
               y={center.y - 22}

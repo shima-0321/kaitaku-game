@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import type { DevCardType, ScoreBreakdown } from '@catan-online/shared'
-import { RESOURCE_LABELS_JA } from '@catan-online/shared'
+import { RESOURCE_LABELS_JA, DEV_CARD_LABELS_JA } from '@catan-online/shared'
 import { useGameStore } from '../../hooks/useGameStore'
 import { socket } from '../../lib/socket'
 import { PLAYER_COLOR_HEX } from '../../lib/colors'
@@ -13,14 +13,6 @@ function formatBreakdown(b: ScoreBreakdown): string {
   if (b.hasLargestArmy) parts.push('最大騎士力(2点)')
   if (b.victoryPointCards > 0) parts.push(`勝利点カード${b.victoryPointCards}(${b.victoryPointCards}点)`)
   return parts.join(' + ') || 'なし'
-}
-
-const DEV_CARD_LABELS_JA: Record<DevCardType, string> = {
-  KNIGHT: '騎士',
-  ROAD_BUILDING: '街道建設',
-  YEAR_OF_PLENTY: '発明',
-  MONOPOLY: '独占',
-  VICTORY_POINT: '勝利点',
 }
 
 export function GameOverModal() {
@@ -52,7 +44,7 @@ export function GameOverModal() {
   }
 
   return (
-    <div className="modal-overlay">
+    <div className="game-over-overlay">
       <div className="modal game-over-modal">
         <h2>🎉 {winnerName} の勝利！</h2>
         <ul className="game-over-modal__scores">

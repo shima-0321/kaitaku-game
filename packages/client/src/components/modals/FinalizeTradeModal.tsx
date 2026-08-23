@@ -20,6 +20,12 @@ export function FinalizeTradeModal() {
     })
   }
 
+  function cancel() {
+    socket.emit('cancel_trade', { tradeId: trade!.id }, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   const accepters = trade.acceptedBy
     .map((id) => clientState!.players.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => !!p)
@@ -35,6 +41,7 @@ export function FinalizeTradeModal() {
               {p.name}さんと成立させる
             </button>
           ))}
+          <button onClick={cancel}>提案を取り消す</button>
         </div>
       </div>
     </div>

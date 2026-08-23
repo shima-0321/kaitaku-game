@@ -100,7 +100,7 @@ function checkWinCondition(draft: GameState, actingPlayerId: string) {
   if (points >= 10) {
     draft.winnerId = actingPlayerId;
     draft.phase = 'GAME_OVER';
-    addLog(draft, `${playerName(draft, actingPlayerId)} wins with ${points} victory points!`);
+    addLog(draft, `${playerName(draft, actingPlayerId)}が${points}点で勝利しました！`);
   }
 }
 
@@ -114,7 +114,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           addLog(draft, `${playerName(draft, r.playerId)}がサイコロで${r.dice[0] + r.dice[1]}を出しました。`);
         }
         addLog(draft, `${playerName(draft, rolls[0].playerId)}が先手です。`);
-        addLog(draft, 'Game started. Setup phase begins.');
+        addLog(draft, 'ゲームを開始しました。初期配置フェーズです。');
       });
     }
 
@@ -135,7 +135,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           addLog(draft, `${playerName(draft, r.playerId)}がサイコロで${r.dice[0] + r.dice[1]}を出しました。`);
         }
         addLog(draft, `${playerName(draft, rolls[0].playerId)}が先手です。`);
-        addLog(draft, 'Rematch! New map generated.');
+        addLog(draft, '再戦！新しいマップを生成しました。');
       });
     }
 
@@ -153,7 +153,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         draft.board.vertices[action.vertexId].building = { playerId: action.playerId, type: 'SETTLEMENT' };
         player.buildingStock.settlements -= 1;
         setup.awaitingRoadForVertexId = action.vertexId;
-        addLog(draft, `${playerName(draft, action.playerId)} placed a starting settlement.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が初期の開拓地を配置しました。`);
       });
 
     case 'PLACE_SETUP_ROAD':
@@ -167,7 +167,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         // still be re-picked before then), matching roadsBuilt's own +1 for this same action
         player.stats.settlementsBuilt += 1;
         player.stats.roadsBuilt += 1;
-        addLog(draft, `${playerName(draft, action.playerId)} placed a starting road.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が初期の道路を配置しました。`);
 
         if (setup.round === 2) {
           const vertex = draft.board.vertices[settlementVertexId];
@@ -195,7 +195,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingTrades: [],
           };
           draft.setup = null;
-          addLog(draft, 'Setup complete. The game begins!');
+          addLog(draft, '初期配置が完了しました。ゲーム開始です！');
         } else {
           setup.round = setup.step >= setup.order.length / 2 ? 2 : 1;
         }
@@ -207,7 +207,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const total = d1 + d2;
         draft.turn!.hasRolled = true;
         draft.turn!.lastDiceRoll = action.dice;
-        addLog(draft, `${playerName(draft, action.playerId)} rolled ${d1} + ${d2} = ${total}.`);
+        addLog(draft, `${playerName(draft, action.playerId)}がサイコロを振って${d1} + ${d2} = ${total}が出ました。`);
 
         if (total === 7) {
           const discardsRemaining: Record<string, number> = {};
@@ -224,7 +224,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           };
           addLog(
             draft,
-            needsDiscard ? 'Rolled a 7 -- players with more than 7 cards must discard.' : 'Rolled a 7 -- move the robber.',
+            needsDiscard ? '7が出ました。手札が8枚以上のプレイヤーは半分捨ててください。' : '7が出ました。盗賊を移動してください。',
           );
           return;
         }
@@ -261,7 +261,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         }
         const pending = draft.turn!.pendingRobber!;
         delete pending.discardsRemaining[action.playerId];
-        addLog(draft, `${playerName(draft, action.playerId)} discarded cards.`);
+        addLog(draft, `${playerName(draft, action.playerId)}がカードを捨てました。`);
 
         const stillWaiting = Object.values(pending.discardsRemaining).some((n) => n > 0);
         if (!stillWaiting) pending.stage = 'MOVE_ROBBER';
@@ -270,7 +270,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case 'MOVE_ROBBER':
       return produce(state, (draft) => {
         draft.board.robberHexId = action.hexId;
-        addLog(draft, `${playerName(draft, action.playerId)} moved the robber.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が盗賊を移動しました。`);
 
         const targetIds = new Set<string>();
         for (const vertex of Object.values(draft.board.vertices)) {
@@ -280,7 +280,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
         if (targetIds.size === 0) {
           draft.turn!.pendingRobber = null;
-          addLog(draft, 'No one to steal from there.');
+          addLog(draft, 'そのマスには奪える相手がいませんでした。');
         } else {
           draft.turn!.pendingRobber!.stage = 'SELECT_TARGET';
           draft.turn!.pendingRobber!.eligibleStealTargets = Array.from(targetIds);
@@ -296,7 +296,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           thief.resources[action.stolenResource] += 1;
           trackGain(draft, action.playerId, action.stolenResource, 1);
         }
-        addLog(draft, `${playerName(draft, action.playerId)} stole a card from ${playerName(draft, action.targetPlayerId)}.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が${playerName(draft, action.targetPlayerId)}からカードを奪いました。`);
         draft.turn!.pendingRobber = null;
       });
 
@@ -307,7 +307,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const player = draft.players.find((p) => p.id === action.playerId)!;
         player.buildingStock.roads -= 1;
         player.stats.roadsBuilt += 1;
-        addLog(draft, `${playerName(draft, action.playerId)} built a road.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が道路を建設しました。`);
         refreshLongestRoad(draft);
         checkWinCondition(draft, action.playerId); // a new longest-road award can itself be the winning point
       });
@@ -319,7 +319,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const player = draft.players.find((p) => p.id === action.playerId)!;
         player.buildingStock.settlements -= 1;
         player.stats.settlementsBuilt += 1;
-        addLog(draft, `${playerName(draft, action.playerId)} built a settlement.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が開拓地を建設しました。`);
         refreshLongestRoad(draft); // a new settlement can cut an opponent's road
         checkWinCondition(draft, action.playerId);
       });
@@ -332,7 +332,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         player.buildingStock.cities -= 1;
         player.buildingStock.settlements += 1; // the settlement piece returns to stock
         player.stats.citiesBuilt += 1;
-        addLog(draft, `${playerName(draft, action.playerId)} built a city.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が都市に更新しました。`);
         checkWinCondition(draft, action.playerId);
       });
 
@@ -344,7 +344,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         const player = draft.players.find((p) => p.id === action.playerId)!;
         player.devCards.push(card);
         player.stats.devCardsBought += 1;
-        addLog(draft, `${playerName(draft, action.playerId)} bought a development card.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が発展カードを購入しました。`);
         if (card.type === 'VICTORY_POINT') checkWinCondition(draft, action.playerId);
       });
 
@@ -360,7 +360,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           case 'KNIGHT': {
             player.knightsPlayed += 1;
             refreshLargestArmy(draft);
-            addLog(draft, `${playerName(draft, action.playerId)} played a knight.`);
+            addLog(draft, `${playerName(draft, action.playerId)}が騎士カードを使用しました。`);
             draft.turn!.pendingRobber = {
               reason: 'KNIGHT_CARD',
               stage: 'MOVE_ROBBER',
@@ -377,7 +377,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             draft.board.edges[e2].road = { playerId: action.playerId };
             player.buildingStock.roads -= 1;
             player.stats.roadsBuilt += 2;
-            addLog(draft, `${playerName(draft, action.playerId)} played road building.`);
+            addLog(draft, `${playerName(draft, action.playerId)}が街道建設カードを使用しました。`);
             refreshLongestRoad(draft);
             checkWinCondition(draft, action.playerId);
             break;
@@ -390,7 +390,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
               draft.bank.resources[key] -= amount;
               trackGain(draft, action.playerId, key, amount);
             }
-            addLog(draft, `${playerName(draft, action.playerId)} played year of plenty.`);
+            addLog(draft, `${playerName(draft, action.playerId)}が発明カードを使用しました。`);
             break;
           }
           case 'MONOPOLY': {
@@ -403,7 +403,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             }
             player.resources[resource] += total;
             trackGain(draft, action.playerId, resource, total);
-            addLog(draft, `${playerName(draft, action.playerId)} played monopoly on ${resource}.`);
+            addLog(draft, `${playerName(draft, action.playerId)}が独占カードで${RESOURCE_LABELS_JA[resource]}を独占しました。`);
             break;
           }
         }
@@ -423,7 +423,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           draft.bank.resources[key] -= amount;
           trackGain(draft, action.playerId, key, amount);
         }
-        addLog(draft, `${playerName(draft, action.playerId)} traded with the bank.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が銀行と交易しました。`);
       });
 
     case 'PROPOSE_TRADE':
@@ -437,7 +437,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           status: 'PENDING',
           acceptedBy: [],
         });
-        addLog(draft, `${playerName(draft, action.playerId)} proposed a trade.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が交易を提案しました。`);
       });
 
     case 'RESPOND_TRADE':
@@ -449,14 +449,14 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           // the proposer to choose between -- settle it immediately, same as before FINALIZE_TRADE
           // existed. An open offer (targetId === null) could still draw more accepters, so it waits.
           if (trade.targetId !== null) {
-            addLog(draft, `${playerName(draft, action.playerId)} accepted a trade from ${playerName(draft, trade.proposerId)}.`);
+            addLog(draft, `${playerName(draft, action.playerId)}が${playerName(draft, trade.proposerId)}の交易を承諾しました。`);
             settleTrade(draft, trade, action.playerId);
           } else {
-            addLog(draft, `${playerName(draft, action.playerId)} is willing to accept a trade from ${playerName(draft, trade.proposerId)}.`);
+            addLog(draft, `${playerName(draft, action.playerId)}が${playerName(draft, trade.proposerId)}の交易に承諾の意思を示しました。`);
           }
         } else {
           trade.acceptedBy = trade.acceptedBy.filter((id) => id !== action.playerId);
-          addLog(draft, `${playerName(draft, action.playerId)} rejected a trade.`);
+          addLog(draft, `${playerName(draft, action.playerId)}が交易を拒否しました。`);
           // A 1:1 offer ends on rejection; an open offer (targetId === null) stays available for others.
           if (trade.targetId !== null) {
             draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== action.tradeId);
@@ -467,13 +467,13 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case 'CANCEL_TRADE':
       return produce(state, (draft) => {
         draft.turn!.pendingTrades = draft.turn!.pendingTrades.filter((t) => t.id !== action.tradeId);
-        addLog(draft, `${playerName(draft, action.playerId)} cancelled a trade.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が交易を取り消しました。`);
       });
 
     case 'FINALIZE_TRADE':
       return produce(state, (draft) => {
         const trade = draft.turn!.pendingTrades.find((t) => t.id === action.tradeId)!;
-        addLog(draft, `${playerName(draft, trade.proposerId)} finalized a trade with ${playerName(draft, action.withPlayerId)}.`);
+        addLog(draft, `${playerName(draft, trade.proposerId)}が${playerName(draft, action.withPlayerId)}との交易を成立させました。`);
         settleTrade(draft, trade, action.withPlayerId);
       });
 
@@ -490,7 +490,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
           pendingRobber: null,
           pendingTrades: [],
         };
-        addLog(draft, `${playerName(draft, action.playerId)} ended their turn.`);
+        addLog(draft, `${playerName(draft, action.playerId)}が手番を終了しました。`);
       });
 
     default:

@@ -6,6 +6,14 @@ export type ResourceHand = Record<ResourceType, number>;
 
 export type DevCardType = 'KNIGHT' | 'ROAD_BUILDING' | 'YEAR_OF_PLENTY' | 'MONOPOLY' | 'VICTORY_POINT';
 
+export const DEV_CARD_LABELS_JA: Record<DevCardType, string> = {
+  KNIGHT: '騎士',
+  ROAD_BUILDING: '街道建設',
+  YEAR_OF_PLENTY: '発明',
+  MONOPOLY: '独占',
+  VICTORY_POINT: '勝利点',
+};
+
 export interface DevCard {
   id: string;
   type: DevCardType;
