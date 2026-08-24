@@ -53,7 +53,7 @@ export function GamePage() {
   const [monopolyDevCardId, setMonopolyDevCardId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
   const [showCardHelp, setShowCardHelp] = useState(false)
-  const [mobilePopup, setMobilePopup] = useState<'INFO' | 'HAND' | 'ACTION' | null>(null)
+  const [mobilePopup, setMobilePopup] = useState<'INFO' | 'TRADE' | 'ACTION' | null>(null)
 
   useEffect(() => {
     startBgm()
@@ -312,7 +312,7 @@ export function GamePage() {
 
   // Each of these renders one self-contained group of the sidebar. They're called once for the
   // desktop sidebar (all groups inline) and once more inside whichever mobile popup is open
-  // (grouped as 情報/手札/アクション), so the two layouts never drift out of sync.
+  // (grouped as 情報/アクション[手札を含む]/交易), so the two layouts never drift out of sync.
   function renderHelpButtonsSection() {
     return (
       <section className="help-buttons panel-section">
@@ -447,9 +447,15 @@ export function GamePage() {
     )
   }
 
+  function renderTradeGroup() {
+    return state.phase === 'PLAYING' ? <TradePanel /> : null
+  }
+
   function renderActionGroup() {
     return (
       <>
+        {renderHandGroup()}
+
         {state.phase === 'PLAYING' && !pendingRobber && (
           <section className="action-bar panel-section">
             {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
@@ -498,8 +504,6 @@ export function GamePage() {
             onOpenMonopoly={setMonopolyDevCardId}
           />
         )}
-
-        {state.phase === 'PLAYING' && <TradePanel />}
 
         {state.phase === 'GAME_OVER' && (
           <section className="game-over panel-section">
@@ -551,9 +555,9 @@ export function GamePage() {
 
       <aside className="game-page__sidebar">
         {renderInfoGroup()}
-        {renderHandGroup()}
         {renderStatusSection()}
         {renderActionGroup()}
+        {renderTradeGroup()}
       </aside>
 
       <div className="mobile-portrait-tabs">
@@ -564,8 +568,8 @@ export function GamePage() {
         >
           🎲 アクション
         </button>
-        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('HAND')}>
-          🃏 手札
+        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('TRADE')}>
+          🔄 交易
         </button>
       </div>
 
@@ -583,8 +587,8 @@ export function GamePage() {
         <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('INFO')}>
           📋 情報
         </button>
-        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('HAND')}>
-          🃏 手札
+        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('TRADE')}>
+          🔄 交易
         </button>
         <button
           type="button"
@@ -600,9 +604,9 @@ export function GamePage() {
           {renderInfoGroup()}
         </InfoModal>
       )}
-      {mobilePopup === 'HAND' && (
-        <InfoModal title="手札" onClose={() => setMobilePopup(null)}>
-          {renderHandGroup()}
+      {mobilePopup === 'TRADE' && (
+        <InfoModal title="交易" onClose={() => setMobilePopup(null)}>
+          {renderTradeGroup()}
         </InfoModal>
       )}
       {mobilePopup === 'ACTION' && (
