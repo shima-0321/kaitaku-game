@@ -5,6 +5,7 @@ import buildSound from '../assets/sounds/木材に釘を打つ.mp3'
 import myTurnStartSound from '../assets/sounds/決定ボタンを押す4.mp3'
 import knightSound from '../assets/sounds/剣を抜く.mp3'
 import levelUpSound from '../assets/sounds/レベルアップ.mp3'
+import winSound from '../assets/sounds/ドンドンパフパフ.mp3'
 
 export const SOUND_URLS = {
   buttonClick: buttonClickSound,
@@ -13,6 +14,7 @@ export const SOUND_URLS = {
   myTurnStart: myTurnStartSound,
   knight: knightSound,
   levelUp: levelUpSound,
+  win: winSound,
 }
 
 const BASE_SFX_VOLUME = 0.6

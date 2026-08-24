@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { DiceRolledPayload, GameSoundPayload, RobbedDetailPayload } from '@catan-online/shared'
+import type { DiceRolledPayload, GameOverPayload, GameSoundPayload, RobbedDetailPayload } from '@catan-online/shared'
 import { socket } from '../lib/socket'
 import { useGameStore } from './useGameStore'
 import { playGameSound, SOUND_URLS } from '../lib/sound'
@@ -39,6 +39,11 @@ export function useSocketConnection() {
     function onGameSound(payload: GameSoundPayload) {
       playGameSound(GAME_SOUND_BY_KIND[payload.kind])
     }
+    function onGameOver(payload: GameOverPayload) {
+      // Broadcast to every player, not just the winner, so the whole table hears it.
+      setGameOverPayload(payload)
+      playGameSound(SOUND_URLS.win)
+    }
     function onRobbedDetail(payload: RobbedDetailPayload) {
       setRobbedDetailEvent(payload)
     }
@@ -48,7 +53,7 @@ export function useSocketConnection() {
     socket.on('room_updated', setRoomInfo)
     socket.on('game_started', setClientState)
     socket.on('state_update', setClientState)
-    socket.on('game_over', setGameOverPayload)
+    socket.on('game_over', onGameOver)
     socket.on('dice_rolled', onDiceRolled)
     socket.on('knight_played', onKnightPlayed)
     socket.on('game_sound', onGameSound)
@@ -62,7 +67,7 @@ export function useSocketConnection() {
       socket.off('room_updated', setRoomInfo)
       socket.off('game_started', setClientState)
       socket.off('state_update', setClientState)
-      socket.off('game_over', setGameOverPayload)
+      socket.off('game_over', onGameOver)
       socket.off('dice_rolled', onDiceRolled)
       socket.off('knight_played', onKnightPlayed)
       socket.off('game_sound', onGameSound)

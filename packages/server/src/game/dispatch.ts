@@ -19,10 +19,21 @@ export function dispatch(io: AppServer, room: Room, action: GameAction, cb: AckF
     return false;
   }
   const hadWinnerBefore = room.state.winnerId !== null;
+  const previousLongestRoadHolder = room.state.longestRoadPlayerId;
+  const previousLargestArmyHolder = room.state.largestArmyPlayerId;
   room.state = applyAction(room.state, action);
   room.touch();
   broadcastState(io, room, 'state_update');
   cb({ ok: true });
+
+  // Checked centrally here (rather than in each handler) so every path that can flip these --
+  // road building, playing a knight, and the bot AI doing either -- is covered by one comparison.
+  if (room.state.longestRoadPlayerId && room.state.longestRoadPlayerId !== previousLongestRoadHolder) {
+    io.to(room.state.roomId).emit('game_sound', { kind: 'LEVEL_UP', playerId: room.state.longestRoadPlayerId });
+  }
+  if (room.state.largestArmyPlayerId && room.state.largestArmyPlayerId !== previousLargestArmyHolder) {
+    io.to(room.state.roomId).emit('game_sound', { kind: 'LEVEL_UP', playerId: room.state.largestArmyPlayerId });
+  }
 
   if (!hadWinnerBefore && room.state.winnerId) {
     const finalScores = room.state.players.map((p) => ({
