@@ -28,6 +28,7 @@ import { MonopolyModal } from '../components/modals/MonopolyModal'
 import { GameOverModal } from '../components/modals/GameOverModal'
 import { GameRulesModal } from '../components/modals/GameRulesModal'
 import { CardHelpModal } from '../components/modals/CardHelpModal'
+import { InfoModal } from '../components/modals/InfoModal'
 import { PLAYER_COLOR_HEX } from '../lib/colors'
 import { startBgm, stopBgm, playGameSound, SOUND_URLS } from '../lib/sound'
 
@@ -52,6 +53,7 @@ export function GamePage() {
   const [monopolyDevCardId, setMonopolyDevCardId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
   const [showCardHelp, setShowCardHelp] = useState(false)
+  const [mobilePopup, setMobilePopup] = useState<'INFO' | 'HAND' | 'ACTION' | null>(null)
 
   useEffect(() => {
     startBgm()
@@ -129,8 +131,12 @@ export function GamePage() {
     )
   }
 
-  const me = clientState.me
-  const isSetupPhase = clientState.phase === 'SETUP'
+  // Captured as a fresh const (rather than reusing the narrowed `clientState`) so the render*
+  // helper functions below -- which are nested function declarations -- see a non-nullable type
+  // too; TS doesn't carry narrowing on `clientState` itself across a function boundary.
+  const state = clientState
+  const me = state.me
+  const isSetupPhase = state.phase === 'SETUP'
   const isMySetupTurn = isSetupPhase && clientState.setup?.order[clientState.setup.step] === playerId
   const isMyTurn = clientState.phase === 'PLAYING' && clientState.turn?.currentPlayerId === playerId
   const awaitingRoadVertexId = clientState.setup?.awaitingRoadForVertexId ?? null
@@ -157,6 +163,10 @@ export function GamePage() {
     canAfford(me.resources, CITY_COST) &&
     me.buildingStock.cities > 0 &&
     Object.values(clientState.board.vertices).some((v) => canUpgradeToCity(clientState.board, v.id, playerId))
+
+  // Mirrors the condition under which the action-bar always shows at least one enabled (pulsing)
+  // button, so the mobile "アクション" tab itself can pulse without the popup being open.
+  const hasPendingAction = clientState.phase === 'PLAYING' && !pendingRobber && isMyTurn
 
   const selectableVertexIds = new Set<VertexId>()
   const selectableEdgeIds = new Set<EdgeId>()
@@ -299,6 +309,196 @@ export function GamePage() {
     })
   }
 
+  // Each of these renders one self-contained group of the sidebar. They're called once for the
+  // desktop sidebar (all groups inline) and once more inside whichever mobile popup is open
+  // (grouped as 情報/手札/アクション), so the two layouts never drift out of sync.
+  function renderHelpButtonsSection() {
+    return (
+      <section className="help-buttons panel-section">
+        <button type="button" onClick={() => setShowRules(true)}>
+          📖 ゲーム説明
+        </button>
+        <button type="button" onClick={() => setShowCardHelp(true)}>
+          🃏 カード説明
+        </button>
+      </section>
+    )
+  }
+
+  function renderPlayerSummarySection() {
+    return (
+      <section className="player-summary-list panel-section">
+        <h2>プレイヤー</h2>
+        <ul>
+          {[me, ...state.players].map((p) => (
+            <li
+              key={p.id}
+              style={{ color: PLAYER_COLOR_HEX[p.color] }}
+              className={state.turn?.currentPlayerId === p.id ? 'player-summary-list__current' : ''}
+            >
+              {p.isBot && '\u{1F916} '}
+              {p.name}
+              {state.turn?.currentPlayerId === p.id && ' ▶'}
+              {' - 得点 '}
+              {p.id === me.id ? me.totalVictoryPoints : p.visibleVictoryPoints}
+              {' / 資源 '}
+              {p.resourceCount}
+              {' / 騎士 '}
+              {p.knightsPlayed}
+              {' / 道 '}
+              {calculateLongestRoad(state.board, p.id)}
+              {p.hasLongestRoad && <span className="title-badge title-badge--road">{'\u{1F6E3}'} 最長交易路</span>}
+              {p.hasLargestArmy && <span className="title-badge title-badge--army">⚔ 最大騎士力</span>}
+              {!p.connected && ' (切断中)'}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  function renderBuildRecipesSection() {
+    return (
+      <section className="build-recipes panel-section">
+        <h2>建築レシピ</h2>
+        <ul>
+          <li>道路: {formatCost(ROAD_COST)}</li>
+          <li>開拓地: {formatCost(SETTLEMENT_COST)}</li>
+          <li>都市: {formatCost(CITY_COST)}</li>
+          <li>発展カード: {formatCost(DEV_CARD_COST)}</li>
+        </ul>
+      </section>
+    )
+  }
+
+  function renderGameLogSection() {
+    return (
+      <section className="game-log panel-section">
+        <h2>ログ</h2>
+        <ul>
+          {[...state.log]
+            .reverse()
+            .map((entry) => (
+              <li key={entry.id}>{entry.message}</li>
+            ))}
+        </ul>
+      </section>
+    )
+  }
+
+  function renderInfoGroup() {
+    return (
+      <>
+        {renderHelpButtonsSection()}
+        {renderPlayerSummarySection()}
+        {renderBuildRecipesSection()}
+        {renderGameLogSection()}
+      </>
+    )
+  }
+
+  function renderHandGroup() {
+    if (!me) return null
+    return (
+      <section className="hand-panel panel-section">
+        <h2>手札 (合計 {totalResources(me.resources)}枚)</h2>
+        <ul>
+          <li>レンガ: {me.resources.BRICK}</li>
+          <li>木材: {me.resources.LUMBER}</li>
+          <li>羊毛: {me.resources.WOOL}</li>
+          <li>麦: {me.resources.GRAIN}</li>
+          <li>鉱石: {me.resources.ORE}</li>
+        </ul>
+      </section>
+    )
+  }
+
+  function renderActionGroup() {
+    return (
+      <>
+        {lastError && <p className="error-text">{lastError}</p>}
+
+        {isSetupPhase && (
+          <p>
+            {isMySetupTurn
+              ? awaitingRoadVertexId
+                ? '道路を置く場所を選んでください（開拓地はクリックし直せます）'
+                : '開拓地を置く場所を選んでください'
+              : '他のプレイヤーの初期配置を待っています…'}
+          </p>
+        )}
+
+        {state.phase === 'PLAYING' && pendingRobber && (
+          <section className="action-bar panel-section">
+            {pendingRobber.stage === 'DISCARD' &&
+              (myDiscardRequired > 0 ? <p>カードを{myDiscardRequired}枚捨ててください</p> : <p>他のプレイヤーの捨て札を待っています…</p>)}
+            {pendingRobber.stage === 'MOVE_ROBBER' &&
+              (isMoveRobberStage ? <p>盗賊を移動するタイルを選んでください</p> : <p>盗賊の移動を待っています…</p>)}
+            {pendingRobber.stage === 'SELECT_TARGET' &&
+              (isSelectTargetStage ? <p>誰から奪うか選んでください</p> : <p>盗賊の対象選択を待っています…</p>)}
+          </section>
+        )}
+
+        {state.phase === 'PLAYING' && !pendingRobber && (
+          <section className="action-bar panel-section">
+            {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
+            {isMyTurn && state.turn?.hasRolled && (
+              <>
+                <button
+                  className={buildMode === 'ROAD' ? 'active' : ''}
+                  disabled={!canBuildRoad}
+                  onClick={() => setBuildMode(buildMode === 'ROAD' ? 'NONE' : 'ROAD')}
+                >
+                  道路を建設
+                </button>
+                <button
+                  className={buildMode === 'SETTLEMENT' ? 'active' : ''}
+                  disabled={!canBuildSettlement}
+                  onClick={() => setBuildMode(buildMode === 'SETTLEMENT' ? 'NONE' : 'SETTLEMENT')}
+                >
+                  開拓地を建設
+                </button>
+                <button
+                  className={buildMode === 'CITY' ? 'active' : ''}
+                  disabled={!canBuildCity}
+                  onClick={() => setBuildMode(buildMode === 'CITY' ? 'NONE' : 'CITY')}
+                >
+                  都市に更新
+                </button>
+                <button onClick={handleEndTurn}>手番を終了</button>
+              </>
+            )}
+            {!isMyTurn && (
+              <p>{state.players.find((p) => p.id === state.turn?.currentPlayerId)?.name ?? '相手'}の手番です</p>
+            )}
+            <DiceRoller />
+          </section>
+        )}
+
+        {state.phase === 'PLAYING' && !pendingRobber && (
+          <DevCardPanel
+            roadBuildingDevCardId={roadBuildingDevCardId}
+            onStartRoadBuilding={(devCardId) => {
+              setBuildMode('NONE')
+              setRoadBuildingDevCardId(devCardId)
+              setRoadBuildingFirstEdge(null)
+            }}
+            onOpenYearOfPlenty={setYearOfPlentyDevCardId}
+            onOpenMonopoly={setMonopolyDevCardId}
+          />
+        )}
+
+        {state.phase === 'PLAYING' && <TradePanel />}
+
+        {state.phase === 'GAME_OVER' && (
+          <section className="game-over panel-section">
+            <h2>ゲーム終了</h2>
+          </section>
+        )}
+      </>
+    )
+  }
+
   return (
     <div className={isMyTurn ? 'game-page game-page--my-turn' : 'game-page'}>
       {showTurnBanner && <div className="turn-banner">あなたの番です！</div>}
@@ -339,157 +539,42 @@ export function GamePage() {
       </div>
 
       <aside className="game-page__sidebar">
-        <section className="help-buttons">
-          <button type="button" onClick={() => setShowRules(true)}>
-            📖 ゲーム説明
-          </button>
-          <button type="button" onClick={() => setShowCardHelp(true)}>
-            🃏 カード説明
-          </button>
-        </section>
-
-        <section className="player-summary-list">
-          <h2>プレイヤー</h2>
-          <ul>
-            {[me, ...clientState.players].map((p) => (
-              <li
-                key={p.id}
-                style={{ color: PLAYER_COLOR_HEX[p.color] }}
-                className={clientState.turn?.currentPlayerId === p.id ? 'player-summary-list__current' : ''}
-              >
-                {p.isBot && '\u{1F916} '}
-                {p.name}
-                {clientState.turn?.currentPlayerId === p.id && ' ▶'}
-                {' - 得点 '}
-                {p.id === me.id ? me.totalVictoryPoints : p.visibleVictoryPoints}
-                {' / 資源 '}
-                {p.resourceCount}
-                {' / 騎士 '}
-                {p.knightsPlayed}
-                {' / 道 '}
-                {calculateLongestRoad(clientState.board, p.id)}
-                {p.hasLongestRoad && <span className="title-badge title-badge--road">{'\u{1F6E3}'} 最長交易路</span>}
-                {p.hasLargestArmy && <span className="title-badge title-badge--army">⚔ 最大騎士力</span>}
-                {!p.connected && ' (切断中)'}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {me && (
-          <section className="hand-panel">
-            <h2>手札 (合計 {totalResources(me.resources)}枚)</h2>
-            <ul>
-              <li>レンガ: {me.resources.BRICK}</li>
-              <li>木材: {me.resources.LUMBER}</li>
-              <li>羊毛: {me.resources.WOOL}</li>
-              <li>麦: {me.resources.GRAIN}</li>
-              <li>鉱石: {me.resources.ORE}</li>
-            </ul>
-          </section>
-        )}
-
-        <section className="build-recipes">
-          <h2>建築レシピ</h2>
-          <ul>
-            <li>道路: {formatCost(ROAD_COST)}</li>
-            <li>開拓地: {formatCost(SETTLEMENT_COST)}</li>
-            <li>都市: {formatCost(CITY_COST)}</li>
-            <li>発展カード: {formatCost(DEV_CARD_COST)}</li>
-          </ul>
-        </section>
-
-        {lastError && <p className="error-text">{lastError}</p>}
-
-        {isSetupPhase && (
-          <p>
-            {isMySetupTurn
-              ? awaitingRoadVertexId
-                ? '道路を置く場所を選んでください（開拓地はクリックし直せます）'
-                : '開拓地を置く場所を選んでください'
-              : '他のプレイヤーの初期配置を待っています…'}
-          </p>
-        )}
-
-        {clientState.phase === 'PLAYING' && pendingRobber && (
-          <section className="action-bar">
-            {pendingRobber.stage === 'DISCARD' &&
-              (myDiscardRequired > 0 ? <p>カードを{myDiscardRequired}枚捨ててください</p> : <p>他のプレイヤーの捨て札を待っています…</p>)}
-            {pendingRobber.stage === 'MOVE_ROBBER' &&
-              (isMoveRobberStage ? <p>盗賊を移動するタイルを選んでください</p> : <p>盗賊の移動を待っています…</p>)}
-            {pendingRobber.stage === 'SELECT_TARGET' &&
-              (isSelectTargetStage ? <p>誰から奪うか選んでください</p> : <p>盗賊の対象選択を待っています…</p>)}
-          </section>
-        )}
-
-        {clientState.phase === 'PLAYING' && !pendingRobber && (
-          <section className="action-bar">
-            {isMyTurn && !clientState.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
-            {isMyTurn && clientState.turn?.hasRolled && (
-              <>
-                <button
-                  className={buildMode === 'ROAD' ? 'active' : ''}
-                  disabled={!canBuildRoad}
-                  onClick={() => setBuildMode(buildMode === 'ROAD' ? 'NONE' : 'ROAD')}
-                >
-                  道路を建設
-                </button>
-                <button
-                  className={buildMode === 'SETTLEMENT' ? 'active' : ''}
-                  disabled={!canBuildSettlement}
-                  onClick={() => setBuildMode(buildMode === 'SETTLEMENT' ? 'NONE' : 'SETTLEMENT')}
-                >
-                  開拓地を建設
-                </button>
-                <button
-                  className={buildMode === 'CITY' ? 'active' : ''}
-                  disabled={!canBuildCity}
-                  onClick={() => setBuildMode(buildMode === 'CITY' ? 'NONE' : 'CITY')}
-                >
-                  都市に更新
-                </button>
-                <button onClick={handleEndTurn}>手番を終了</button>
-              </>
-            )}
-            {!isMyTurn && (
-              <p>{clientState.players.find((p) => p.id === clientState.turn?.currentPlayerId)?.name ?? '相手'}の手番です</p>
-            )}
-            <DiceRoller />
-          </section>
-        )}
-
-        {clientState.phase === 'PLAYING' && !pendingRobber && (
-          <DevCardPanel
-            roadBuildingDevCardId={roadBuildingDevCardId}
-            onStartRoadBuilding={(devCardId) => {
-              setBuildMode('NONE')
-              setRoadBuildingDevCardId(devCardId)
-              setRoadBuildingFirstEdge(null)
-            }}
-            onOpenYearOfPlenty={setYearOfPlentyDevCardId}
-            onOpenMonopoly={setMonopolyDevCardId}
-          />
-        )}
-
-        {clientState.phase === 'PLAYING' && <TradePanel />}
-
-        {clientState.phase === 'GAME_OVER' && (
-          <section className="game-over">
-            <h2>ゲーム終了</h2>
-          </section>
-        )}
-
-        <section className="game-log">
-          <h2>ログ</h2>
-          <ul>
-            {[...clientState.log]
-              .reverse()
-              .map((entry) => (
-                <li key={entry.id}>{entry.message}</li>
-              ))}
-          </ul>
-        </section>
+        {renderInfoGroup()}
+        {renderHandGroup()}
+        {renderActionGroup()}
       </aside>
+
+      <nav className="mobile-tab-bar">
+        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('INFO')}>
+          📋 情報
+        </button>
+        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('HAND')}>
+          🃏 手札
+        </button>
+        <button
+          type="button"
+          className={hasPendingAction ? 'mobile-tab-bar__btn mobile-tab-bar__btn--actionable' : 'mobile-tab-bar__btn'}
+          onClick={() => setMobilePopup('ACTION')}
+        >
+          🎲 アクション
+        </button>
+      </nav>
+
+      {mobilePopup === 'INFO' && (
+        <InfoModal title="情報" onClose={() => setMobilePopup(null)}>
+          {renderInfoGroup()}
+        </InfoModal>
+      )}
+      {mobilePopup === 'HAND' && (
+        <InfoModal title="手札" onClose={() => setMobilePopup(null)}>
+          {renderHandGroup()}
+        </InfoModal>
+      )}
+      {mobilePopup === 'ACTION' && (
+        <InfoModal title="アクション" onClose={() => setMobilePopup(null)}>
+          {renderActionGroup()}
+        </InfoModal>
+      )}
     </div>
   )
 }

@@ -35,7 +35,7 @@ export function DevCardPanel({ roadBuildingDevCardId, onStartRoadBuilding, onOpe
   const unusedCards = me.devCards.filter((c) => !c.used)
 
   return (
-    <section className="dev-card-panel">
+    <section className="dev-card-panel panel-section">
       <h2>発展カード ({me.devCards.filter((c) => c.used).length + unusedCards.length}枚所持)</h2>
       <button disabled={!canAfford(me.resources, DEV_CARD_COST) || !isMyTurn || !clientState.turn?.hasRolled} onClick={handleBuy}>
         購入する

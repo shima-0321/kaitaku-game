@@ -144,7 +144,7 @@ export function TradePanel() {
   const myProposedTrades = pendingTrades.filter((t) => t.proposerId === playerId)
 
   return (
-    <section className="trade-panel">
+    <section className="trade-panel panel-section">
       <h2>交易</h2>
 
       {canTradeNow && (

@@ -336,16 +336,16 @@ button.active {
   text-align: left;
 }
 
-.game-page__sidebar section {
+.panel-section {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
 }
-.game-page__sidebar h2 {
+.panel-section h2 {
   font-size: 15px;
   margin-bottom: 6px;
 }
-.game-page__sidebar ul {
+.panel-section ul {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -778,6 +778,69 @@ button.active {
   gap: 10px;
   justify-content: center;
   margin-top: 16px;
+}
+
+.mobile-tab-bar {
+  display: none;
+}
+.mobile-tab-bar__btn {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  padding: 10px 4px;
+  font-size: 13px;
+}
+.mobile-tab-bar__btn:last-child {
+  border-right: none;
+}
+.mobile-tab-bar__btn--actionable {
+  box-shadow: inset 0 0 0 2px rgba(76, 175, 80, 0.5);
+  animation: actionable-pulse 1.6s ease-in-out infinite;
+}
+
+/* Mobile landscape: short viewport, so the sidebar can't fit alongside the board. Collapse it into
+   a bottom tab bar (情報/手札/アクション) that opens the same content as a popup instead. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .game-page {
+    flex-wrap: nowrap;
+    height: 100svh;
+    max-height: 100svh;
+    padding: 4px;
+    gap: 0;
+    overflow: hidden;
+  }
+  .game-page__board {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 48px;
+    box-sizing: border-box;
+  }
+  .hex-board {
+    max-height: 100%;
+    width: auto;
+    max-width: 100%;
+  }
+  .game-page__sidebar {
+    display: none;
+  }
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.25);
+  }
+  .info-modal {
+    max-height: 92svh;
+  }
 }
 
 @media (max-width: 600px) {
