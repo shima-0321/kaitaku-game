@@ -82,6 +82,7 @@ export function setBgmVolumePercent(percent: number) {
   } catch {
     // ignore storage failures (private mode, disabled storage, etc.)
   }
+  getAudioCtx() // dragging the slider is user activation too -- resume here, don't wait for a click
   applyBgmVolume()
   notifyVolumeChange()
 }
@@ -93,6 +94,7 @@ export function setSfxVolumePercent(percent: number) {
   } catch {
     // ignore storage failures
   }
+  getAudioCtx()
   notifyVolumeChange()
 }
 
@@ -103,8 +105,61 @@ export function toggleMute() {
   } catch {
     // ignore storage failures
   }
+  getAudioCtx()
   applyBgmVolume()
   notifyVolumeChange()
+}
+
+// iOS Safari silently ignores HTMLMediaElement.volume (audio always plays at full device volume,
+// and .volume writes are no-ops) -- it only honors the .muted flag. So the volume sliders and the
+// mute button both appeared broken on iPhone even though they worked everywhere else. Routing
+// playback through a Web Audio GainNode instead of setting .volume directly sidesteps that: gain
+// changes are respected on iOS the same as anywhere else.
+let audioCtx: AudioContext | null = null
+const gainNodes = new WeakMap<HTMLAudioElement, GainNode>()
+
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!audioCtx) {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!Ctor) return null
+      audioCtx = new Ctor()
+    }
+    if (audioCtx.state === 'suspended') void audioCtx.resume().catch(() => {})
+    return audioCtx
+  } catch {
+    return null
+  }
+}
+
+/** Connects an <audio> element through a GainNode so its loudness can be controlled reliably
+ * (including on iOS). Falls back to plain `.volume` if Web Audio is unavailable. Must only be
+ * called once per element -- a second createMediaElementSource() on the same element throws. */
+function setupGain(audio: HTMLAudioElement): GainNode | null {
+  const ctx = getAudioCtx()
+  if (!ctx) return null
+  try {
+    const source = ctx.createMediaElementSource(audio)
+    const gain = ctx.createGain()
+    source.connect(gain)
+    gain.connect(ctx.destination)
+    gainNodes.set(audio, gain)
+    return gain
+  } catch {
+    return null
+  }
+}
+
+function setAudioVolume(audio: HTMLAudioElement, volume: number) {
+  const gain = gainNodes.get(audio)
+  if (gain) {
+    gain.gain.value = volume
+  } else {
+    audio.volume = volume
+  }
+  // Belt-and-braces: also flip the boolean mute flag, which iOS respects even when it ignores
+  // both .volume and (in rare cases) GainNode changes made before the context has resumed.
+  audio.muted = volume === 0
 }
 
 const audioCache = new Map<string, HTMLAudioElement>()
@@ -114,9 +169,10 @@ function playAt(src: string, baseVolume: number) {
   let audio = audioCache.get(src)
   if (!audio) {
     audio = new Audio(src)
+    setupGain(audio)
     audioCache.set(src, audio)
   }
-  audio.volume = baseVolume * sfxScale()
+  setAudioVolume(audio, baseVolume * sfxScale())
   audio.currentTime = 0
   void audio.play().catch(() => {})
 }
@@ -134,7 +190,7 @@ let bgmAudio: HTMLAudioElement | null = null
 let bgmWantsToPlay = false
 
 function applyBgmVolume() {
-  if (bgmAudio) bgmAudio.volume = BASE_BGM_VOLUME * bgmScale()
+  if (bgmAudio) setAudioVolume(bgmAudio, BASE_BGM_VOLUME * bgmScale())
 }
 
 export function startBgm() {
@@ -142,6 +198,7 @@ export function startBgm() {
   if (!bgmAudio) {
     bgmAudio = new Audio(bgmSound)
     bgmAudio.loop = true
+    setupGain(bgmAudio)
   }
   applyBgmVolume()
   void bgmAudio.play().catch(() => {})
@@ -157,6 +214,7 @@ export function stopBgm() {
  * direct user gesture (e.g. entering GamePage because another player started the game). Call this
  * from any click handler so playback picks back up on the player's next interaction. */
 export function resumeBgmIfNeeded() {
+  getAudioCtx() // also nudges the AudioContext out of "suspended" now that we have a user gesture
   if (bgmWantsToPlay && bgmAudio?.paused) {
     void bgmAudio.play().catch(() => {})
   }
