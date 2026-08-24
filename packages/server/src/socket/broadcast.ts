@@ -25,6 +25,7 @@ export function broadcastRoomUpdated(io: AppServer, room: Room) {
   io.to(room.state.roomId).emit('room_updated', {
     roomCode: room.state.roomCode,
     hostPlayerId: room.state.hostPlayerId,
+    boardMode: room.state.boardMode,
     players: room.state.players.map((p) => ({
       id: p.id,
       name: p.name,

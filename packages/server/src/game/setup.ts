@@ -19,6 +19,7 @@ export function createNewGameState(roomId: string, roomCode: string, hostPlayerI
     roomCode,
     hostPlayerId,
     phase: 'LOBBY',
+    boardMode: 'RANDOM',
     board: generateBoard(),
     bank: {
       resources: {
@@ -109,7 +110,7 @@ export function startGame(state: GameState, turnOrder: TurnOrderRoll[]): GameSta
     ...state,
     players: orderedPlayers,
     phase: 'SETUP',
-    board: generateBoard(),
+    board: generateBoard({ mode: state.boardMode }),
     bank: { ...state.bank, devCardDeck: buildDevCardDeck() },
     setup: {
       order: snakeOrder,

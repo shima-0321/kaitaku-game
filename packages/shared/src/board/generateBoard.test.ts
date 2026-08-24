@@ -71,4 +71,46 @@ describe('generateBoard', () => {
       }
     }
   });
+
+  function sameTerrainAdjacency(board: ReturnType<typeof generateBoard>): number {
+    let count = 0;
+    for (const tile of Object.values(board.tiles)) {
+      if (tile.terrain === 'DESERT') continue;
+      for (const d of HEX_DIRECTIONS) {
+        const neighborId = hexKey(hexAdd(tile.coord, d));
+        const neighbor = board.tiles[neighborId];
+        if (!neighbor || neighborId <= tile.id) continue;
+        if (neighbor.terrain === tile.terrain) count++;
+      }
+    }
+    return count;
+  }
+
+  describe('BALANCED mode', () => {
+    it('still produces the correct terrain distribution and respects the 6/8 rule', () => {
+      const board = generateBoard({ rng: mulberry32(123), mode: 'BALANCED' });
+      const counts: Record<TerrainType, number> = { HILLS: 0, PASTURE: 0, MOUNTAINS: 0, FOREST: 0, FIELDS: 0, DESERT: 0 };
+      for (const tile of Object.values(board.tiles)) counts[tile.terrain]++;
+      expect(counts).toEqual({ HILLS: 3, PASTURE: 4, MOUNTAINS: 3, FOREST: 4, FIELDS: 4, DESERT: 1 });
+
+      for (const tile of Object.values(board.tiles)) {
+        if (tile.numberToken !== 6 && tile.numberToken !== 8) continue;
+        for (const d of HEX_DIRECTIONS) {
+          const neighbor = board.tiles[hexKey(hexAdd(tile.coord, d))];
+          if (neighbor) expect([6, 8]).not.toContain(neighbor.numberToken);
+        }
+      }
+    });
+
+    it('clusters same-terrain tiles noticeably less than RANDOM mode, on average', () => {
+      const trials = 20;
+      let randomTotal = 0;
+      let balancedTotal = 0;
+      for (let seed = 0; seed < trials; seed++) {
+        randomTotal += sameTerrainAdjacency(generateBoard({ rng: mulberry32(seed * 777 + 3) }));
+        balancedTotal += sameTerrainAdjacency(generateBoard({ rng: mulberry32(seed * 777 + 3), mode: 'BALANCED' }));
+      }
+      expect(balancedTotal).toBeLessThan(randomTotal);
+    });
+  });
 });

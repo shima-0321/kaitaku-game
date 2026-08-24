@@ -1,5 +1,5 @@
 import type { ClientGameState, ResourceHand, ScoreBreakdown } from './game.js';
-import type { HexId, VertexId, EdgeId, ResourceType } from './board.js';
+import type { HexId, VertexId, EdgeId, ResourceType, BoardMode } from './board.js';
 
 export type AckOkWith<T = unknown> = { ok: true } & T;
 export interface AckErr {
@@ -84,6 +84,9 @@ export interface BankTradePayload {
   give: Partial<ResourceHand>;
   receive: Partial<ResourceHand>;
 }
+export interface SetBoardModePayload {
+  mode: BoardMode;
+}
 
 // ---- Client -> Server event map ----
 export interface ClientToServerEvents {
@@ -94,6 +97,7 @@ export interface ClientToServerEvents {
   rematch: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
   add_bot: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
   remove_bot: (payload: { playerId: string }, cb: (ack: Ack) => void) => void;
+  set_board_mode: (payload: SetBoardModePayload, cb: (ack: Ack) => void) => void;
   place_setup_settlement: (payload: PlaceSetupSettlementPayload, cb: (ack: Ack) => void) => void;
   place_setup_road: (payload: PlaceSetupRoadPayload, cb: (ack: Ack) => void) => void;
   roll_dice: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
@@ -124,6 +128,7 @@ export interface RoomPlayerSummary {
 export interface RoomUpdatedPayload {
   roomCode: string;
   hostPlayerId: string;
+  boardMode: BoardMode;
   players: RoomPlayerSummary[];
 }
 export interface DiceRolledPayload {

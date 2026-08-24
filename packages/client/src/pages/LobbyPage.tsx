@@ -1,5 +1,9 @@
+import type { BoardMode } from '@catan-online/shared'
+import { BOARD_MODE_LABELS_JA } from '@catan-online/shared'
 import { socket } from '../lib/socket'
 import { useGameStore } from '../hooks/useGameStore'
+
+const BOARD_MODES: BoardMode[] = ['RANDOM', 'BALANCED']
 
 export function LobbyPage({ roomCode }: { roomCode: string }) {
   const roomInfo = useGameStore((s) => s.roomInfo)
@@ -42,6 +46,12 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
     })
   }
 
+  function handleSetBoardMode(mode: BoardMode) {
+    socket.emit('set_board_mode', { mode }, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   return (
     <div className="page lobby-page">
       <h1>待機室</h1>
@@ -71,6 +81,24 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
           CPUを追加
         </button>
       )}
+
+      <div className="board-mode-picker">
+        <span className="board-mode-picker__label">マップ生成:</span>
+        {isHost ? (
+          BOARD_MODES.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={roomInfo.boardMode === mode ? 'active' : ''}
+              onClick={() => handleSetBoardMode(mode)}
+            >
+              {BOARD_MODE_LABELS_JA[mode]}
+            </button>
+          ))
+        ) : (
+          <span>{BOARD_MODE_LABELS_JA[roomInfo.boardMode]}</span>
+        )}
+      </div>
 
       {lastError && <p className="error-text">{lastError}</p>}
 

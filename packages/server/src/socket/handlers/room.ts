@@ -115,6 +115,20 @@ export function registerRoomHandlers({ io, socket, roomManager }: HandlerContext
     cb({ ok: true });
   });
 
+  socket.on('set_board_mode', ({ mode }, cb) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'not in a room' });
+    const playerId = room.socketIdToPlayerId.get(socket.id)!;
+    if (room.state.hostPlayerId !== playerId) return cb({ ok: false, error: 'only the host can change the board mode' });
+    if (room.state.phase !== 'LOBBY') return cb({ ok: false, error: 'game already started' });
+    if (mode !== 'RANDOM' && mode !== 'BALANCED') return cb({ ok: false, error: 'invalid board mode' });
+
+    room.state = { ...room.state, boardMode: mode };
+    room.touch();
+    broadcastRoomUpdated(io, room);
+    cb({ ok: true });
+  });
+
   socket.on('leave_room', (_payload, cb) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return cb({ ok: false, error: 'not in a room' });

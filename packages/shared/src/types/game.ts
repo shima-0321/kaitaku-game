@@ -1,4 +1,4 @@
-import type { Board, ResourceType, HexId, VertexId, EdgeId } from './board.js';
+import type { Board, ResourceType, HexId, VertexId, EdgeId, BoardMode } from './board.js';
 
 export type PlayerColor = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
 
@@ -109,6 +109,7 @@ export interface GameState {
   roomCode: string;
   hostPlayerId: string;
   phase: GamePhase;
+  boardMode: BoardMode;
   board: Board;
   bank: Bank;
   players: Player[];

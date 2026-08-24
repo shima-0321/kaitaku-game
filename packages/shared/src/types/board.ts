@@ -30,6 +30,13 @@ export const RESOURCE_LABELS_JA: Record<ResourceType, string> = {
 
 export type PortType = 'GENERIC' | ResourceType;
 
+export type BoardMode = 'RANDOM' | 'BALANCED';
+
+export const BOARD_MODE_LABELS_JA: Record<BoardMode, string> = {
+  RANDOM: '完全ランダム',
+  BALANCED: 'バランス',
+};
+
 export interface Tile {
   id: HexId;
   coord: HexCoord;

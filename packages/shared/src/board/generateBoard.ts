@@ -1,4 +1,4 @@
-import type { Board, Tile, TerrainType, Port, PortType, HexId, VertexId, EdgeId } from '../types/board.js';
+import type { Board, Tile, TerrainType, Port, PortType, HexId, VertexId, EdgeId, BoardMode } from '../types/board.js';
 import { generateStandardHexCoords, buildTopology, hexKey, hexAdd, HEX_DIRECTIONS, type Topology } from './topology.js';
 
 const TERRAIN_COUNTS: Record<TerrainType, number> = {
@@ -60,14 +60,61 @@ function hasSixEightAdjacency(numbers: Map<HexId, number | null>, tileAdjacency:
   return false;
 }
 
+/** Counts same-terrain neighbor pairs (each pair counted once) -- this is what makes a board feel
+ * "clumpy", e.g. three forest tiles all touching each other in one corner. */
+function countSameTerrainAdjacency(terrain: Map<HexId, TerrainType>, tileAdjacency: Map<HexId, HexId[]>): number {
+  let count = 0;
+  for (const [hexId, neighbors] of tileAdjacency) {
+    const t = terrain.get(hexId);
+    if (t === 'DESERT') continue;
+    for (const n of neighbors) {
+      if (n <= hexId) continue; // count each pair once
+      if (terrain.get(n) === t) count++;
+    }
+  }
+  return count;
+}
+
+const BALANCED_SEARCH_ATTEMPTS = 300;
+/** Stop searching once clustering is this low or better -- not worth burning the rest of the
+ * search budget chasing a theoretical zero that may not exist for this tile-count mix. */
+const BALANCED_TARGET_SCORE = 1;
+
+/** Best-of-N search on top of the normal 6/8 retry: keeps whichever valid layout has the fewest
+ * same-terrain adjacent pairs, so resource tiles spread out instead of clumping together. */
+function pickBalancedLayout(
+  hexCoords: ReturnType<typeof generateStandardHexCoords>,
+  tileAdjacency: Map<HexId, HexId[]>,
+  rng: () => number,
+  initial: { terrain: Map<HexId, TerrainType>; numbers: Map<HexId, number | null> },
+): { terrain: Map<HexId, TerrainType>; numbers: Map<HexId, number | null> } {
+  let best = initial;
+  let bestScore = countSameTerrainAdjacency(initial.terrain, tileAdjacency);
+
+  for (let attempt = 0; attempt < BALANCED_SEARCH_ATTEMPTS && bestScore > BALANCED_TARGET_SCORE; attempt++) {
+    const candidate = assignTerrainAndNumbers(hexCoords, rng);
+    if (hasSixEightAdjacency(candidate.numbers, tileAdjacency)) continue;
+    const score = countSameTerrainAdjacency(candidate.terrain, tileAdjacency);
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 export interface GenerateBoardOptions {
   rng?: () => number;
   maxAttempts?: number;
+  /** RANDOM (default) keeps the original fully-random shuffle; BALANCED additionally searches for
+   * a layout where same-terrain tiles don't cluster together. */
+  mode?: BoardMode;
 }
 
 export function generateBoard(options: GenerateBoardOptions = {}): Board {
   const rng = options.rng ?? Math.random;
   const maxAttempts = options.maxAttempts ?? 1000;
+  const mode = options.mode ?? 'RANDOM';
 
   const hexCoords = generateStandardHexCoords();
   const topology = buildTopology(hexCoords);
@@ -86,6 +133,10 @@ export function generateBoard(options: GenerateBoardOptions = {}): Board {
   let result = assignTerrainAndNumbers(hexCoords, rng);
   for (let attempt = 0; attempt < maxAttempts && hasSixEightAdjacency(result.numbers, tileAdjacency); attempt++) {
     result = assignTerrainAndNumbers(hexCoords, rng);
+  }
+
+  if (mode === 'BALANCED') {
+    result = pickBalancedLayout(hexCoords, tileAdjacency, rng, result);
   }
 
   const tiles: Record<HexId, Tile> = {};
