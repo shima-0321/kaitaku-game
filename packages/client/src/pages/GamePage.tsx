@@ -294,6 +294,15 @@ export function GamePage() {
     })
   }
 
+  // Entering a build mode means the next click has to land on the board, which the mobile
+  // アクション popup sits on top of and blocks -- so close it as part of selecting the mode,
+  // not as a separate step the player has to remember.
+  function selectBuildMode(mode: Exclude<BuildMode, 'NONE'>) {
+    const next = buildMode === mode ? 'NONE' : mode
+    setBuildMode(next)
+    if (next !== 'NONE') setMobilePopup(null)
+  }
+
   function handleRollDice() {
     socket.emit('roll_dice', {}, (ack) => {
       if (!ack.ok) setLastError(ack.error)
@@ -458,25 +467,17 @@ export function GamePage() {
         {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
         {isMyTurn && state.turn?.hasRolled && (
           <>
-            <button
-              className={buildMode === 'ROAD' ? 'active' : ''}
-              disabled={!canBuildRoad}
-              onClick={() => setBuildMode(buildMode === 'ROAD' ? 'NONE' : 'ROAD')}
-            >
+            <button className={buildMode === 'ROAD' ? 'active' : ''} disabled={!canBuildRoad} onClick={() => selectBuildMode('ROAD')}>
               道路を建設
             </button>
             <button
               className={buildMode === 'SETTLEMENT' ? 'active' : ''}
               disabled={!canBuildSettlement}
-              onClick={() => setBuildMode(buildMode === 'SETTLEMENT' ? 'NONE' : 'SETTLEMENT')}
+              onClick={() => selectBuildMode('SETTLEMENT')}
             >
               開拓地を建設
             </button>
-            <button
-              className={buildMode === 'CITY' ? 'active' : ''}
-              disabled={!canBuildCity}
-              onClick={() => setBuildMode(buildMode === 'CITY' ? 'NONE' : 'CITY')}
-            >
+            <button className={buildMode === 'CITY' ? 'active' : ''} disabled={!canBuildCity} onClick={() => selectBuildMode('CITY')}>
               都市に更新
             </button>
             <button onClick={handleEndTurn}>手番を終了</button>
@@ -497,6 +498,7 @@ export function GamePage() {
           setBuildMode('NONE')
           setRoadBuildingDevCardId(devCardId)
           setRoadBuildingFirstEdge(null)
+          setMobilePopup(null)
         }}
         onOpenYearOfPlenty={setYearOfPlentyDevCardId}
         onOpenMonopoly={setMonopolyDevCardId}
