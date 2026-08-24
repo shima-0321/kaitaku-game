@@ -7,9 +7,16 @@ export interface DevCardPanelProps {
   onStartRoadBuilding: (devCardId: string) => void
   onOpenYearOfPlenty: (devCardId: string) => void
   onOpenMonopoly: (devCardId: string) => void
+  onPlayKnight: () => void
 }
 
-export function DevCardPanel({ roadBuildingDevCardId, onStartRoadBuilding, onOpenYearOfPlenty, onOpenMonopoly }: DevCardPanelProps) {
+export function DevCardPanel({
+  roadBuildingDevCardId,
+  onStartRoadBuilding,
+  onOpenYearOfPlenty,
+  onOpenMonopoly,
+  onPlayKnight,
+}: DevCardPanelProps) {
   const clientState = useGameStore((s) => s.clientState)
   const playerId = useGameStore((s) => s.playerId)
   const setLastError = useGameStore((s) => s.setLastError)
@@ -26,6 +33,7 @@ export function DevCardPanel({ roadBuildingDevCardId, onStartRoadBuilding, onOpe
   }
 
   function handlePlayKnight(devCardId: string) {
+    onPlayKnight()
     // sound is played for everyone via the server's knight_played broadcast, not here
     socket.emit('play_dev_card', { devCardId }, (ack) => {
       if (!ack.ok) setLastError(ack.error)

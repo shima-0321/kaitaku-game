@@ -500,8 +500,15 @@ export function GamePage() {
           setRoadBuildingFirstEdge(null)
           setMobilePopup(null)
         }}
-        onOpenYearOfPlenty={setYearOfPlentyDevCardId}
-        onOpenMonopoly={setMonopolyDevCardId}
+        onOpenYearOfPlenty={(devCardId) => {
+          setYearOfPlentyDevCardId(devCardId)
+          setMobilePopup(null)
+        }}
+        onOpenMonopoly={(devCardId) => {
+          setMonopolyDevCardId(devCardId)
+          setMobilePopup(null)
+        }}
+        onPlayKnight={() => setMobilePopup(null)}
       />
     )
   }
