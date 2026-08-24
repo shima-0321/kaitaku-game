@@ -304,6 +304,7 @@ export function GamePage() {
     setBuildMode('NONE')
     setRoadBuildingDevCardId(null)
     setRoadBuildingFirstEdge(null)
+    setMobilePopup(null)
     socket.emit('end_turn', {}, (ack) => {
       if (!ack.ok) setLastError(ack.error)
     })
@@ -543,6 +544,27 @@ export function GamePage() {
         {renderHandGroup()}
         {renderActionGroup()}
       </aside>
+
+      <div className="mobile-portrait-tabs">
+        <button
+          type="button"
+          className={hasPendingAction ? 'mobile-tab-bar__btn mobile-tab-bar__btn--actionable' : 'mobile-tab-bar__btn'}
+          onClick={() => setMobilePopup('ACTION')}
+        >
+          🎲 アクション
+        </button>
+        <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('HAND')}>
+          🃏 手札
+        </button>
+      </div>
+
+      <div className="mobile-portrait-info">
+        {renderPlayerSummarySection()}
+        {renderBuildRecipesSection()}
+        {renderGameLogSection()}
+      </div>
+
+      <div className="mobile-portrait-help">{renderHelpButtonsSection()}</div>
 
       <nav className="mobile-tab-bar">
         <button type="button" className="mobile-tab-bar__btn" onClick={() => setMobilePopup('INFO')}>

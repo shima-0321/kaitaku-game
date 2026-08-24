@@ -799,6 +799,36 @@ button.active {
   animation: actionable-pulse 1.6s ease-in-out infinite;
 }
 
+.mobile-portrait-tabs,
+.mobile-portrait-info,
+.mobile-portrait-help {
+  display: none;
+}
+.mobile-portrait-tabs {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mobile-portrait-info {
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Mobile portrait: same idea as the landscape tab bar below, but with room to keep 情報 inline --
+   only アクション/手札 move behind a tap, in the spot the help buttons used to occupy, and the
+   help buttons themselves drop to the very bottom of the page instead. */
+@media (max-width: 600px) and (orientation: portrait) {
+  .game-page__sidebar {
+    display: none;
+  }
+  .mobile-portrait-tabs,
+  .mobile-portrait-info,
+  .mobile-portrait-help {
+    display: flex;
+    flex-basis: 100%;
+  }
+}
+
 /* Mobile landscape: short viewport, so the sidebar can't fit alongside the board. Collapse it into
    a bottom tab bar (情報/手札/アクション) that opens the same content as a popup instead. */
 @media (orientation: landscape) and (max-height: 560px) {
