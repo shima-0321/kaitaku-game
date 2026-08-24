@@ -800,6 +800,7 @@ button.active {
 }
 
 .mobile-portrait-tabs,
+.mobile-portrait-status,
 .mobile-portrait-info,
 .mobile-portrait-help {
   display: none;
@@ -809,6 +810,7 @@ button.active {
   border-radius: 8px;
   overflow: hidden;
 }
+.mobile-portrait-status,
 .mobile-portrait-info {
   flex-direction: column;
   gap: 16px;
@@ -816,12 +818,14 @@ button.active {
 
 /* Mobile portrait: same idea as the landscape tab bar below, but with room to keep 情報 inline --
    only アクション/手札 move behind a tap, in the spot the help buttons used to occupy, and the
-   help buttons themselves drop to the very bottom of the page instead. */
+   help buttons themselves drop to the very bottom of the page instead. The current-action status
+   text (what to do right now) sits between the tab buttons and the player list, always visible. */
 @media (max-width: 600px) and (orientation: portrait) {
   .game-page__sidebar {
     display: none;
   }
   .mobile-portrait-tabs,
+  .mobile-portrait-status,
   .mobile-portrait-info,
   .mobile-portrait-help {
     display: flex;

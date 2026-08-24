@@ -414,7 +414,11 @@ export function GamePage() {
     )
   }
 
-  function renderActionGroup() {
+  // What the player should do right now -- kept separate from renderActionGroup() so it can sit
+  // always-visible (between the tab buttons and the player list on mobile) rather than hidden
+  // behind the アクション popup, since board-driven actions like setup placement or moving the
+  // robber have no button of their own to surface an error next to.
+  function renderStatusSection() {
     return (
       <>
         {lastError && <p className="error-text">{lastError}</p>}
@@ -439,7 +443,13 @@ export function GamePage() {
               (isSelectTargetStage ? <p>誰から奪うか選んでください</p> : <p>盗賊の対象選択を待っています…</p>)}
           </section>
         )}
+      </>
+    )
+  }
 
+  function renderActionGroup() {
+    return (
+      <>
         {state.phase === 'PLAYING' && !pendingRobber && (
           <section className="action-bar panel-section">
             {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
@@ -542,6 +552,7 @@ export function GamePage() {
       <aside className="game-page__sidebar">
         {renderInfoGroup()}
         {renderHandGroup()}
+        {renderStatusSection()}
         {renderActionGroup()}
       </aside>
 
@@ -557,6 +568,8 @@ export function GamePage() {
           🃏 手札
         </button>
       </div>
+
+      <div className="mobile-portrait-status">{renderStatusSection()}</div>
 
       <div className="mobile-portrait-info">
         {renderPlayerSummarySection()}
@@ -594,6 +607,7 @@ export function GamePage() {
       )}
       {mobilePopup === 'ACTION' && (
         <InfoModal title="アクション" onClose={() => setMobilePopup(null)}>
+          {renderStatusSection()}
           {renderActionGroup()}
         </InfoModal>
       )}
