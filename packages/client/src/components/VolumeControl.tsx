@@ -42,6 +42,7 @@ export function VolumeControl() {
             className="volume-control__slider"
             aria-label="BGM音量"
           />
+          <span className="volume-control__value">{state.bgmVolumePercent}</span>
         </label>
         <label className="volume-control__slider-row">
           <span>SE</span>
@@ -54,6 +55,7 @@ export function VolumeControl() {
             className="volume-control__slider"
             aria-label="効果音音量"
           />
+          <span className="volume-control__value">{state.sfxVolumePercent}</span>
         </label>
       </div>
       <button

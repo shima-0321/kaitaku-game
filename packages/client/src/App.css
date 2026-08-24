@@ -87,9 +87,16 @@
   width: 28px;
   flex-shrink: 0;
 }
+.volume-control__slider-row .volume-control__value {
+  width: 24px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .volume-control__slider {
   flex: 1;
   cursor: pointer;
+  accent-color: var(--accent);
 }
 
 .page {

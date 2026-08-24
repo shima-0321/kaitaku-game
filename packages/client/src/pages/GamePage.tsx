@@ -451,65 +451,75 @@ export function GamePage() {
     return state.phase === 'PLAYING' ? <TradePanel /> : null
   }
 
+  function renderActionBarSection() {
+    if (state.phase !== 'PLAYING' || pendingRobber) return null
+    return (
+      <section className="action-bar panel-section">
+        {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
+        {isMyTurn && state.turn?.hasRolled && (
+          <>
+            <button
+              className={buildMode === 'ROAD' ? 'active' : ''}
+              disabled={!canBuildRoad}
+              onClick={() => setBuildMode(buildMode === 'ROAD' ? 'NONE' : 'ROAD')}
+            >
+              道路を建設
+            </button>
+            <button
+              className={buildMode === 'SETTLEMENT' ? 'active' : ''}
+              disabled={!canBuildSettlement}
+              onClick={() => setBuildMode(buildMode === 'SETTLEMENT' ? 'NONE' : 'SETTLEMENT')}
+            >
+              開拓地を建設
+            </button>
+            <button
+              className={buildMode === 'CITY' ? 'active' : ''}
+              disabled={!canBuildCity}
+              onClick={() => setBuildMode(buildMode === 'CITY' ? 'NONE' : 'CITY')}
+            >
+              都市に更新
+            </button>
+            <button onClick={handleEndTurn}>手番を終了</button>
+          </>
+        )}
+        {!isMyTurn && <p>{state.players.find((p) => p.id === state.turn?.currentPlayerId)?.name ?? '相手'}の手番です</p>}
+        <DiceRoller />
+      </section>
+    )
+  }
+
+  function renderDevCardSection() {
+    if (state.phase !== 'PLAYING' || pendingRobber) return null
+    return (
+      <DevCardPanel
+        roadBuildingDevCardId={roadBuildingDevCardId}
+        onStartRoadBuilding={(devCardId) => {
+          setBuildMode('NONE')
+          setRoadBuildingDevCardId(devCardId)
+          setRoadBuildingFirstEdge(null)
+        }}
+        onOpenYearOfPlenty={setYearOfPlentyDevCardId}
+        onOpenMonopoly={setMonopolyDevCardId}
+      />
+    )
+  }
+
+  function renderGameOverSection() {
+    if (state.phase !== 'GAME_OVER') return null
+    return (
+      <section className="game-over panel-section">
+        <h2>ゲーム終了</h2>
+      </section>
+    )
+  }
+
   function renderActionGroup() {
     return (
       <>
         {renderHandGroup()}
-
-        {state.phase === 'PLAYING' && !pendingRobber && (
-          <section className="action-bar panel-section">
-            {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
-            {isMyTurn && state.turn?.hasRolled && (
-              <>
-                <button
-                  className={buildMode === 'ROAD' ? 'active' : ''}
-                  disabled={!canBuildRoad}
-                  onClick={() => setBuildMode(buildMode === 'ROAD' ? 'NONE' : 'ROAD')}
-                >
-                  道路を建設
-                </button>
-                <button
-                  className={buildMode === 'SETTLEMENT' ? 'active' : ''}
-                  disabled={!canBuildSettlement}
-                  onClick={() => setBuildMode(buildMode === 'SETTLEMENT' ? 'NONE' : 'SETTLEMENT')}
-                >
-                  開拓地を建設
-                </button>
-                <button
-                  className={buildMode === 'CITY' ? 'active' : ''}
-                  disabled={!canBuildCity}
-                  onClick={() => setBuildMode(buildMode === 'CITY' ? 'NONE' : 'CITY')}
-                >
-                  都市に更新
-                </button>
-                <button onClick={handleEndTurn}>手番を終了</button>
-              </>
-            )}
-            {!isMyTurn && (
-              <p>{state.players.find((p) => p.id === state.turn?.currentPlayerId)?.name ?? '相手'}の手番です</p>
-            )}
-            <DiceRoller />
-          </section>
-        )}
-
-        {state.phase === 'PLAYING' && !pendingRobber && (
-          <DevCardPanel
-            roadBuildingDevCardId={roadBuildingDevCardId}
-            onStartRoadBuilding={(devCardId) => {
-              setBuildMode('NONE')
-              setRoadBuildingDevCardId(devCardId)
-              setRoadBuildingFirstEdge(null)
-            }}
-            onOpenYearOfPlenty={setYearOfPlentyDevCardId}
-            onOpenMonopoly={setMonopolyDevCardId}
-          />
-        )}
-
-        {state.phase === 'GAME_OVER' && (
-          <section className="game-over panel-section">
-            <h2>ゲーム終了</h2>
-          </section>
-        )}
+        {renderActionBarSection()}
+        {renderDevCardSection()}
+        {renderGameOverSection()}
       </>
     )
   }
@@ -553,11 +563,20 @@ export function GamePage() {
         />
       </div>
 
+      {/* Desktop sidebar deliberately doesn't reuse renderInfoGroup()/renderActionGroup() --
+          those are grouped for the mobile tab popups specifically. Desktop keeps its own,
+          original section order here since the two layouts are independent designs. */}
       <aside className="game-page__sidebar">
-        {renderInfoGroup()}
+        {renderHelpButtonsSection()}
+        {renderPlayerSummarySection()}
+        {renderHandGroup()}
+        {renderBuildRecipesSection()}
         {renderStatusSection()}
-        {renderActionGroup()}
+        {renderActionBarSection()}
+        {renderDevCardSection()}
         {renderTradeGroup()}
+        {renderGameOverSection()}
+        {renderGameLogSection()}
       </aside>
 
       <div className="mobile-portrait-tabs">
