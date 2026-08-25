@@ -128,6 +128,7 @@ export interface GameState {
   phase: GamePhase;
   boardMode: BoardMode;
   specialBuildingPhaseEnabled: boolean;
+  friendlyRobberEnabled: boolean;
   board: Board;
   bank: Bank;
   players: Player[];
@@ -183,6 +184,7 @@ export interface ClientGameState {
   roomCode: string;
   hostPlayerId: string;
   phase: GamePhase;
+  friendlyRobberEnabled: boolean;
   board: Board;
   bank: ClientBank;
   players: PublicPlayerView[];

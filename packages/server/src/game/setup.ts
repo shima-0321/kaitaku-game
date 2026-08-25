@@ -22,6 +22,7 @@ export function createNewGameState(roomId: string, roomCode: string, hostPlayerI
     phase: 'LOBBY',
     boardMode: 'RANDOM',
     specialBuildingPhaseEnabled: false,
+    friendlyRobberEnabled: false,
     board: generateBoard(),
     bank: {
       resources: {

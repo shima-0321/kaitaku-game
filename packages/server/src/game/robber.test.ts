@@ -217,6 +217,48 @@ describe('move robber + steal', () => {
   });
 });
 
+describe('friendly robber house rule', () => {
+  /** p1 has a single settlement (1 visible point, within the "only 2 points" protection); p2 has
+   * a city plus largest army (2 + 2 = 4 points, clearly past the threshold, so not protected). */
+  function stateWithProtectedAndUnprotectedTargets(friendlyRobberEnabled: boolean): { state: GameState; protectedHexId: string; openHexId: string } {
+    let state = { ...makePlayingState(), friendlyRobberEnabled };
+    const hexIds = Object.keys(state.board.tiles).filter((id) => id !== state.board.robberHexId);
+    const protectedHexId = hexIds[0];
+    // Pick a second hex that shares no vertex with the first, so the two test buildings can't
+    // accidentally end up "protecting" each other's tile too.
+    const openHexId = hexIds.find(
+      (id) => id !== protectedHexId && !Object.values(state.board.vertices).some((v) => v.hexIds.includes(id) && v.hexIds.includes(protectedHexId)),
+    )!;
+    const protectedVertexId = Object.values(state.board.vertices).find((v) => v.hexIds.includes(protectedHexId))!.id;
+    const openVertexId = Object.values(state.board.vertices).find((v) => v.hexIds.includes(openHexId))!.id;
+    state = {
+      ...state,
+      largestArmyPlayerId: 'p2',
+      board: {
+        ...state.board,
+        vertices: {
+          ...state.board.vertices,
+          [protectedVertexId]: { ...state.board.vertices[protectedVertexId], building: { playerId: 'p1', type: 'SETTLEMENT' } },
+          [openVertexId]: { ...state.board.vertices[openVertexId], building: { playerId: 'p2', type: 'CITY' } },
+        },
+      },
+    };
+    state = applyAction(state, { type: 'ROLL_DICE', playerId: 'p0', dice: [3, 4] });
+    return { state, protectedHexId, openHexId };
+  }
+
+  it('blocks moving the robber onto a hex touching a player at only 2 visible points, when enabled', () => {
+    const { state, protectedHexId, openHexId } = stateWithProtectedAndUnprotectedTargets(true);
+    expect(validateAction(state, { type: 'MOVE_ROBBER', playerId: 'p0', hexId: protectedHexId }).ok).toBe(false);
+    expect(validateAction(state, { type: 'MOVE_ROBBER', playerId: 'p0', hexId: openHexId }).ok).toBe(true);
+  });
+
+  it('does not restrict robber placement when disabled (default)', () => {
+    const { state, protectedHexId } = stateWithProtectedAndUnprotectedTargets(false);
+    expect(validateAction(state, { type: 'MOVE_ROBBER', playerId: 'p0', hexId: protectedHexId }).ok).toBe(true);
+  });
+});
+
 describe('other actions are blocked while the robber sequence is pending', () => {
   it('blocks building and ending the turn', () => {
     let state = makePlayingState();

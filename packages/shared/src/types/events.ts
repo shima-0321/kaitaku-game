@@ -90,6 +90,9 @@ export interface SetBoardModePayload {
 export interface SetSpecialBuildingPhasePayload {
   enabled: boolean;
 }
+export interface SetFriendlyRobberPayload {
+  enabled: boolean;
+}
 
 // ---- Client -> Server event map ----
 export interface ClientToServerEvents {
@@ -102,6 +105,7 @@ export interface ClientToServerEvents {
   remove_bot: (payload: { playerId: string }, cb: (ack: Ack) => void) => void;
   set_board_mode: (payload: SetBoardModePayload, cb: (ack: Ack) => void) => void;
   set_special_building_phase: (payload: SetSpecialBuildingPhasePayload, cb: (ack: Ack) => void) => void;
+  set_friendly_robber: (payload: SetFriendlyRobberPayload, cb: (ack: Ack) => void) => void;
   place_setup_settlement: (payload: PlaceSetupSettlementPayload, cb: (ack: Ack) => void) => void;
   place_setup_road: (payload: PlaceSetupRoadPayload, cb: (ack: Ack) => void) => void;
   roll_dice: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
@@ -135,6 +139,7 @@ export interface RoomUpdatedPayload {
   hostPlayerId: string;
   boardMode: BoardMode;
   specialBuildingPhaseEnabled: boolean;
+  friendlyRobberEnabled: boolean;
   players: RoomPlayerSummary[];
 }
 export interface DiceRolledPayload {

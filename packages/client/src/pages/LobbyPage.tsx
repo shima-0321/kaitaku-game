@@ -5,6 +5,37 @@ import { useGameStore } from '../hooks/useGameStore'
 
 const BOARD_MODES: BoardMode[] = ['RANDOM', 'BALANCED']
 
+/** A simple あり/なし rule toggle, shared by every boolean house rule in the lobby. */
+function BooleanRulePicker({
+  label,
+  value,
+  editable,
+  onChange,
+}: {
+  label: string
+  value: boolean
+  editable: boolean
+  onChange: (value: boolean) => void
+}) {
+  return (
+    <div className="board-mode-picker">
+      <span className="board-mode-picker__label">{label}:</span>
+      {editable ? (
+        <>
+          <button type="button" className={!value ? 'active' : ''} onClick={() => onChange(false)}>
+            なし
+          </button>
+          <button type="button" className={value ? 'active' : ''} onClick={() => onChange(true)}>
+            あり
+          </button>
+        </>
+      ) : (
+        <span>{value ? 'あり' : 'なし'}</span>
+      )}
+    </div>
+  )
+}
+
 export function LobbyPage({ roomCode }: { roomCode: string }) {
   const roomInfo = useGameStore((s) => s.roomInfo)
   const playerId = useGameStore((s) => s.playerId)
@@ -58,6 +89,12 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
     })
   }
 
+  function handleSetFriendlyRobber(enabled: boolean) {
+    socket.emit('set_friendly_robber', { enabled }, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   return (
     <div className="page lobby-page">
       <h1>待機室</h1>
@@ -106,21 +143,14 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
         )}
       </div>
 
-      <div className="board-mode-picker">
-        <span className="board-mode-picker__label">特別建造フェイズ:</span>
-        {isHost ? (
-          <>
-            <button type="button" className={!roomInfo.specialBuildingPhaseEnabled ? 'active' : ''} onClick={() => handleSetSpecialBuildingPhase(false)}>
-              なし
-            </button>
-            <button type="button" className={roomInfo.specialBuildingPhaseEnabled ? 'active' : ''} onClick={() => handleSetSpecialBuildingPhase(true)}>
-              あり
-            </button>
-          </>
-        ) : (
-          <span>{roomInfo.specialBuildingPhaseEnabled ? 'あり' : 'なし'}</span>
-        )}
-      </div>
+      <BooleanRulePicker
+        label="特別建造フェイズ"
+        value={roomInfo.specialBuildingPhaseEnabled}
+        editable={isHost}
+        onChange={handleSetSpecialBuildingPhase}
+      />
+
+      <BooleanRulePicker label="フレンドリー・ロバー" value={roomInfo.friendlyRobberEnabled} editable={isHost} onChange={handleSetFriendlyRobber} />
 
       {lastError && <p className="error-text">{lastError}</p>}
 

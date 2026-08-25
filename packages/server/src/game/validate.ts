@@ -16,6 +16,7 @@ import type { PlayDevCardParams } from './actions.js';
 import type { GameAction, ValidationResult } from './actions.js';
 import { VALID, invalid } from './actions.js';
 import { MIN_PLAYERS, MAX_PLAYERS } from './setup.js';
+import { isProtectedByFriendlyRobber } from './scoring.js';
 
 export function validateAction(state: GameState, action: GameAction): ValidationResult {
   switch (action.type) {
@@ -147,6 +148,16 @@ function validateMoveRobber(state: GameState, playerId: string, hexId: string): 
   if (state.turn.currentPlayerId !== playerId) return invalid('only the current player moves the robber');
   if (!state.board.tiles[hexId]) return invalid('unknown tile');
   if (hexId === state.board.robberHexId) return invalid('the robber must move to a different tile');
+
+  if (state.friendlyRobberEnabled && isProtectedByFriendlyRobber(state, hexId)) {
+    // ...unless literally every other tile is also protected, in which case the restriction would
+    // soft-lock the move entirely -- fall back to allowing it, per the official rule's own escape hatch.
+    const anyUnprotectedTileExists = Object.keys(state.board.tiles).some(
+      (id) => id !== state.board.robberHexId && !isProtectedByFriendlyRobber(state, id),
+    );
+    if (anyUnprotectedTileExists) return invalid('the friendly robber cannot target a player with only 2 victory points');
+  }
+
   return VALID;
 }
 

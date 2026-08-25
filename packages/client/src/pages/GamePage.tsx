@@ -179,9 +179,19 @@ export function GamePage() {
   const selectableHexIds = new Set<HexId>()
 
   if (isMoveRobberStage) {
-    for (const hexId of Object.keys(clientState.board.tiles)) {
-      if (hexId !== clientState.board.robberHexId) selectableHexIds.add(hexId)
-    }
+    // "Friendly Robber" house rule: can't target a hex touching a player who still only has their
+    // starting 2 visible points -- unless literally every other tile is protected too, in which
+    // case the restriction would soft-lock the move, so it's dropped for this pick (server-validated
+    // the same way, so this stays in sync with what the server will actually accept).
+    const visibleVPById = new Map<string, number>([[me.id, me.visibleVictoryPoints], ...state.players.map((p) => [p.id, p.visibleVictoryPoints] as const)])
+    const isProtected = (hexId: HexId) =>
+      Object.values(clientState.board.vertices).some(
+        (v) => v.hexIds.includes(hexId) && v.building && (visibleVPById.get(v.building.playerId) ?? 0) <= 2,
+      )
+    const candidateHexIds = Object.keys(clientState.board.tiles).filter((hexId) => hexId !== clientState.board.robberHexId)
+    const unprotectedHexIds = candidateHexIds.filter((hexId) => !isProtected(hexId))
+    const usable = clientState.friendlyRobberEnabled && unprotectedHexIds.length > 0 ? unprotectedHexIds : candidateHexIds
+    for (const hexId of usable) selectableHexIds.add(hexId)
   } else if (roadBuildingDevCardId) {
     if (!roadBuildingFirstEdge) {
       for (const edge of Object.values(clientState.board.edges)) {

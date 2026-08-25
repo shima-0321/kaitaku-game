@@ -1,6 +1,7 @@
 import type { GameState, Board, VertexId, EdgeId, ResourceHand, HexId } from '@catan-online/shared';
 import { canPlaceSettlement, canPlaceRoad, canUpgradeToCity, canAfford, ROAD_COST, SETTLEMENT_COST, CITY_COST } from '@catan-online/shared';
 import { dispatch } from './dispatch.js';
+import { isProtectedByFriendlyRobber } from './scoring.js';
 import { rollTwoDice, pickRandomResourceFromHand } from '../utils/rng.js';
 import { emitRobbedDetail } from '../socket/broadcast.js';
 import type { Room } from '../rooms/Room.js';
@@ -62,13 +63,18 @@ function chooseDiscard(resources: ResourceHand, count: number): Partial<Resource
   return discard;
 }
 
-/** Prefers a tile with an opponent's building on it; falls back to any other tile. */
-function chooseRobberHex(board: Board, botId: string): HexId {
+/** Prefers a tile with an opponent's building on it; falls back to any other tile. Respects the
+ * friendly robber house rule the same way the server would validate it, so a bot never wastes
+ * retries proposing a move that's just going to be rejected. */
+function chooseRobberHex(state: GameState, botId: string): HexId {
+  const board = state.board;
   const tiles = Object.values(board.tiles).filter((t) => t.id !== board.robberHexId);
-  const withOpponentBuilding = tiles.filter((t) =>
+  const allowed = state.friendlyRobberEnabled ? tiles.filter((t) => !isProtectedByFriendlyRobber(state, t.id)) : tiles;
+  const usable = allowed.length > 0 ? allowed : tiles; // escape hatch: every tile is protected
+  const withOpponentBuilding = usable.filter((t) =>
     Object.values(board.vertices).some((v) => v.hexIds.includes(t.id) && v.building && v.building.playerId !== botId),
   );
-  const pool = withOpponentBuilding.length > 0 ? withOpponentBuilding : tiles;
+  const pool = withOpponentBuilding.length > 0 ? withOpponentBuilding : usable;
   return pickRandom(pool)!.id;
 }
 
@@ -164,7 +170,7 @@ function runOneBotAction(io: AppServer, room: Room): boolean {
   if (!bot) return false;
 
   if (pendingRobber?.stage === 'MOVE_ROBBER') {
-    dispatch(io, room, { type: 'MOVE_ROBBER', playerId: bot.id, hexId: chooseRobberHex(state.board, bot.id) }, noop);
+    dispatch(io, room, { type: 'MOVE_ROBBER', playerId: bot.id, hexId: chooseRobberHex(state, bot.id) }, noop);
     return true;
   }
   if (pendingRobber?.stage === 'SELECT_TARGET') {

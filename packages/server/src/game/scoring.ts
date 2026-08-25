@@ -31,6 +31,16 @@ export function calculateTotalVictoryPoints(state: GameState, playerId: string):
   return calculateVisibleVictoryPoints(state, playerId) + countVictoryPointCards(player);
 }
 
+/** "Friendly Robber" house rule: true if a building on this hex belongs to a player who still only
+ * has their starting 2 (or fewer) visible victory points -- the robber can't be moved there. */
+export function isProtectedByFriendlyRobber(state: GameState, hexId: string): boolean {
+  const tile = state.board.tiles[hexId];
+  if (!tile) return false;
+  return Object.values(state.board.vertices).some(
+    (v) => v.hexIds.includes(hexId) && v.building && calculateVisibleVictoryPoints(state, v.building.playerId) <= 2,
+  );
+}
+
 /** Itemized point sources, revealed to everyone once the game has ended -- there's no more
  * strategic reason to keep an opponent's hidden VP dev cards secret at that point. */
 export function calculateScoreBreakdown(state: GameState, playerId: string): ScoreBreakdown {
