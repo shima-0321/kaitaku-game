@@ -37,6 +37,7 @@ function makePlayingState(): GameState {
       devCardPlayedThisTurn: false,
       pendingRobber: null,
       pendingTrades: [],
+      specialBuild: null,
     },
   };
 }

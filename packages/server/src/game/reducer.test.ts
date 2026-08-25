@@ -197,6 +197,124 @@ describe('reducer: turn rotation', () => {
   });
 });
 
+describe('reducer: special building phase', () => {
+  function makeGameWithSpecialBuild(count: 3 | 4): GameState {
+    return { ...makeGameWithPlayers(count), specialBuildingPhaseEnabled: true };
+  }
+
+  it('gives every other player one build slot, in order, before the real next turn begins', () => {
+    let state = makeGameWithSpecialBuild(4);
+    state = applyAction(state, { type: 'START_GAME', playerId: 'p0' });
+    const turnOrder = state.players.map((p) => p.id);
+    state = runFullSetup(state);
+
+    const [current, next1, next2, next3] = turnOrder;
+    expect(state.turn!.currentPlayerId).toBe(current);
+
+    state = applyAction(state, { type: 'ROLL_DICE', playerId: current, dice: [2, 2] });
+    state = applyAction(state, { type: 'END_TURN', playerId: current });
+
+    // currentPlayerId stays frozen on the player who just went while the phase runs
+    expect(state.turn!.currentPlayerId).toBe(current);
+    expect(state.turn!.specialBuild).toEqual({ queue: [next2, next3], activePlayerId: next1, nextPlayerId: next1 });
+    expect(validateAction(state, { type: 'PASS_SPECIAL_BUILD', playerId: next2 }).ok).toBe(false); // not their slot yet
+
+    state = applyAction(state, { type: 'PASS_SPECIAL_BUILD', playerId: next1 });
+    expect(state.turn!.specialBuild).toEqual({ queue: [next3], activePlayerId: next2, nextPlayerId: next1 });
+
+    state = applyAction(state, { type: 'PASS_SPECIAL_BUILD', playerId: next2 });
+    expect(state.turn!.specialBuild).toEqual({ queue: [], activePlayerId: next3, nextPlayerId: next1 });
+
+    state = applyAction(state, { type: 'PASS_SPECIAL_BUILD', playerId: next3 });
+    // the phase resolves into the same "next player" turn rotation would have picked anyway
+    expect(state.turn!.specialBuild).toBeNull();
+    expect(state.turn!.currentPlayerId).toBe(next1);
+    expect(state.turn!.turnNumber).toBe(2);
+    expect(state.turn!.hasRolled).toBe(false);
+  });
+
+  it('lets the active special-build player build/buy without having rolled, but blocks everyone else', () => {
+    let state = makeGameWithSpecialBuild(3);
+    state = applyAction(state, { type: 'START_GAME', playerId: 'p0' });
+    const [current, active, waiting] = state.players.map((p) => p.id);
+    state = runFullSetup(state);
+    state = applyAction(state, { type: 'ROLL_DICE', playerId: current, dice: [2, 2] });
+    state = applyAction(state, { type: 'END_TURN', playerId: current });
+    expect(state.turn!.specialBuild!.activePlayerId).toBe(active);
+
+    const freeEdgeId = Object.values(state.board.edges).find(
+      (e) => !e.road && e.vertexIds.some((v) => state.board.vertices[v].building?.playerId === active),
+    )!.id;
+
+    // the player waiting in the queue cannot act yet, and the frozen "current" player cannot either
+    expect(validateAction(state, { type: 'BUILD_ROAD', playerId: waiting, edgeId: freeEdgeId }).ok).toBe(false);
+    expect(validateAction(state, { type: 'END_TURN', playerId: current }).ok).toBe(false);
+
+    state = {
+      ...state,
+      players: state.players.map((p) => (p.id === active ? { ...p, resources: { ...p.resources, BRICK: 1, LUMBER: 1 } } : p)),
+    };
+    // no dice roll needed during a special-build slot
+    state = applyAction(state, { type: 'BUILD_ROAD', playerId: active, edgeId: freeEdgeId });
+    expect(state.board.edges[freeEdgeId].road?.playerId).toBe(active);
+  });
+
+  it('blocks trading and playing development cards for everyone while the phase is active', () => {
+    let state = makeGameWithSpecialBuild(3);
+    state = applyAction(state, { type: 'START_GAME', playerId: 'p0' });
+    const [current, active] = state.players.map((p) => p.id);
+    state = runFullSetup(state);
+    state = applyAction(state, { type: 'ROLL_DICE', playerId: current, dice: [2, 2] });
+    state = applyAction(state, { type: 'END_TURN', playerId: current });
+
+    expect(validateAction(state, { type: 'BANK_TRADE', playerId: active, give: { BRICK: 4 }, receive: { ORE: 1 } }).ok).toBe(false);
+    expect(validateAction(state, { type: 'PLAY_DEV_CARD', playerId: active, devCardId: 'whatever' }).ok).toBe(false);
+  });
+
+  it('defers a win reached during a special-build slot until that player\'s real turn starts', () => {
+    let state = makeGameWithSpecialBuild(3);
+    state = applyAction(state, { type: 'START_GAME', playerId: 'p0' });
+    const [current, active, last] = state.players.map((p) => p.id);
+    state = runFullSetup(state);
+
+    // give `active` 9 points' worth of cities/settlements up front, same trick as the win-condition test above
+    let vertices = { ...state.board.vertices };
+    let placed = 0;
+    for (const vId of Object.keys(vertices)) {
+      const v = vertices[vId];
+      if (v.building || v.adjacentVertexIds.some((a) => vertices[a].building)) continue;
+      vertices = { ...vertices, [vId]: { ...v, building: { playerId: active, type: placed < 4 ? 'CITY' : 'SETTLEMENT' } } };
+      placed++;
+      if (placed === 5) break;
+    }
+    expect(placed).toBe(5);
+    state = { ...state, board: { ...state.board, vertices } };
+
+    state = applyAction(state, { type: 'ROLL_DICE', playerId: current, dice: [2, 2] });
+    state = applyAction(state, { type: 'END_TURN', playerId: current });
+    expect(state.turn!.specialBuild!.activePlayerId).toBe(active);
+
+    // buying a hidden victory-point card pushes `active` to 10 points during their special-build slot
+    state = {
+      ...state,
+      players: state.players.map((p) => (p.id === active ? { ...p, resources: { WOOL: 1, GRAIN: 1, ORE: 1, BRICK: 0, LUMBER: 0 } } : p)),
+      bank: { ...state.bank, devCardDeck: [{ id: 'vp-1', type: 'VICTORY_POINT', boughtOnTurn: -1, used: false }] },
+    };
+    state = applyAction(state, { type: 'BUY_DEV_CARD', playerId: active });
+    expect(state.winnerId).toBeNull(); // not during the special build phase
+    expect(state.phase).toBe('PLAYING');
+
+    state = applyAction(state, { type: 'PASS_SPECIAL_BUILD', playerId: active });
+    expect(state.turn!.specialBuild!.activePlayerId).toBe(last);
+    state = applyAction(state, { type: 'PASS_SPECIAL_BUILD', playerId: last });
+
+    // the phase resolves into `active`'s real turn -- the game should now recognize the win
+    expect(state.turn!.currentPlayerId).toBe(active);
+    expect(state.winnerId).toBe(active);
+    expect(state.phase).toBe('GAME_OVER');
+  });
+});
+
 describe('reducer: win condition', () => {
   it('declares a winner once the acting player reaches 10 victory points via a new settlement', () => {
     let state = makeGameWithPlayers(3);
@@ -213,6 +331,7 @@ describe('reducer: win condition', () => {
         devCardPlayedThisTurn: false,
         pendingRobber: null,
         pendingTrades: [],
+        specialBuild: null,
       },
     };
 

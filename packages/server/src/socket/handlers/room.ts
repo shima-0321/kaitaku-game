@@ -129,6 +129,19 @@ export function registerRoomHandlers({ io, socket, roomManager }: HandlerContext
     cb({ ok: true });
   });
 
+  socket.on('set_special_building_phase', ({ enabled }, cb) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'not in a room' });
+    const playerId = room.socketIdToPlayerId.get(socket.id)!;
+    if (room.state.hostPlayerId !== playerId) return cb({ ok: false, error: 'only the host can change this rule' });
+    if (room.state.phase !== 'LOBBY') return cb({ ok: false, error: 'game already started' });
+
+    room.state = { ...room.state, specialBuildingPhaseEnabled: enabled };
+    room.touch();
+    broadcastRoomUpdated(io, room);
+    cb({ ok: true });
+  });
+
   socket.on('leave_room', (_payload, cb) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return cb({ ok: false, error: 'not in a room' });

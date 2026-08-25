@@ -74,6 +74,39 @@ function chooseRobberHex(board: Board, botId: string): HexId {
 
 const noop = () => {};
 
+/** Building priority: city upgrades are the most point-efficient use of resources, then new
+ * settlements to expand production, then roads. Only one action per call -- the caller loops.
+ * Shared by a bot's regular turn and its special-build slot, which follow the same priority. */
+function attemptBotBuild(io: AppServer, room: Room, state: GameState, botId: string): boolean {
+  const bot = state.players.find((p) => p.id === botId)!;
+
+  if (canAfford(bot.resources, CITY_COST)) {
+    const vertexId = chooseCityVertex(state.board, botId);
+    if (vertexId) {
+      const succeeded = dispatch(io, room, { type: 'BUILD_CITY', playerId: botId, vertexId }, noop);
+      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'LEVEL_UP', playerId: botId });
+      return true;
+    }
+  }
+  if (canAfford(bot.resources, SETTLEMENT_COST) && bot.buildingStock.settlements > 0) {
+    const vertexId = chooseSettlementVertex(state.board, botId, true);
+    if (vertexId) {
+      const succeeded = dispatch(io, room, { type: 'BUILD_SETTLEMENT', playerId: botId, vertexId }, noop);
+      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: botId });
+      return true;
+    }
+  }
+  if (canAfford(bot.resources, ROAD_COST) && bot.buildingStock.roads > 0) {
+    const edgeId = chooseAnyRoadEdge(state.board, botId);
+    if (edgeId) {
+      const succeeded = dispatch(io, room, { type: 'BUILD_ROAD', playerId: botId, edgeId }, noop);
+      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: botId });
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Runs exactly one bot decision if it's currently a bot's turn/step; returns true if it acted. */
 function runOneBotAction(io: AppServer, room: Room): boolean {
   const state: GameState = room.state;
@@ -102,6 +135,14 @@ function runOneBotAction(io: AppServer, room: Room): boolean {
     if (trade.status !== 'PENDING' || !trade.targetId) continue;
     if (!state.players.find((p) => p.id === trade.targetId && p.isBot)) continue;
     dispatch(io, room, { type: 'RESPOND_TRADE', playerId: trade.targetId, tradeId: trade.id, accept: false }, noop);
+    return true;
+  }
+
+  if (turn.specialBuild) {
+    const sbBot = state.players.find((p) => p.id === turn.specialBuild!.activePlayerId && p.isBot);
+    if (!sbBot) return false; // waiting on a human's special-build slot
+    if (attemptBotBuild(io, room, state, sbBot.id)) return true;
+    dispatch(io, room, { type: 'PASS_SPECIAL_BUILD', playerId: sbBot.id }, noop);
     return true;
   }
 
@@ -148,32 +189,7 @@ function runOneBotAction(io: AppServer, room: Room): boolean {
     return true;
   }
 
-  // Building priority: city upgrades are the most point-efficient use of resources, then new
-  // settlements to expand production, then roads. Only one action per call -- the caller loops.
-  if (canAfford(bot.resources, CITY_COST)) {
-    const vertexId = chooseCityVertex(state.board, bot.id);
-    if (vertexId) {
-      const succeeded = dispatch(io, room, { type: 'BUILD_CITY', playerId: bot.id, vertexId }, noop);
-      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'LEVEL_UP', playerId: bot.id });
-      return true;
-    }
-  }
-  if (canAfford(bot.resources, SETTLEMENT_COST) && bot.buildingStock.settlements > 0) {
-    const vertexId = chooseSettlementVertex(state.board, bot.id, true);
-    if (vertexId) {
-      const succeeded = dispatch(io, room, { type: 'BUILD_SETTLEMENT', playerId: bot.id, vertexId }, noop);
-      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: bot.id });
-      return true;
-    }
-  }
-  if (canAfford(bot.resources, ROAD_COST) && bot.buildingStock.roads > 0) {
-    const edgeId = chooseAnyRoadEdge(state.board, bot.id);
-    if (edgeId) {
-      const succeeded = dispatch(io, room, { type: 'BUILD_ROAD', playerId: bot.id, edgeId }, noop);
-      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: bot.id });
-      return true;
-    }
-  }
+  if (attemptBotBuild(io, room, state, bot.id)) return true;
 
   dispatch(io, room, { type: 'END_TURN', playerId: bot.id }, noop);
   return true;

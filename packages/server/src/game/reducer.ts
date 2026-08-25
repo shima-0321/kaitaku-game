@@ -96,6 +96,9 @@ function refreshLargestArmy(draft: GameState) {
  */
 function checkWinCondition(draft: GameState, actingPlayerId: string) {
   if (draft.winnerId) return;
+  // During someone else's special building slot the actor isn't the real current player -- per
+  // the rule, reaching 10 points there doesn't end the game until it's actually their own turn.
+  if (actingPlayerId !== draft.turn?.currentPlayerId) return;
   const points = calculateTotalVictoryPoints(draft, actingPlayerId);
   if (points >= 10) {
     draft.winnerId = actingPlayerId;
@@ -193,9 +196,11 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             devCardPlayedThisTurn: false,
             pendingRobber: null,
             pendingTrades: [],
+            specialBuild: null,
           };
           draft.setup = null;
           addLog(draft, '初期配置が完了しました。ゲーム開始です！');
+          checkWinCondition(draft, draft.players[0].id);
         } else {
           setup.round = setup.step >= setup.order.length / 2 ? 2 : 1;
         }
@@ -479,18 +484,58 @@ export function applyAction(state: GameState, action: GameAction): GameState {
 
     case 'END_TURN':
       return produce(state, (draft) => {
-        const currentIndex = draft.players.findIndex((p) => p.id === action.playerId);
-        const nextIndex = (currentIndex + 1) % draft.players.length;
-        draft.turn = {
-          turnNumber: draft.turn!.turnNumber + 1,
-          currentPlayerId: draft.players[nextIndex].id,
-          hasRolled: false,
-          lastDiceRoll: null,
-          devCardPlayedThisTurn: false,
-          pendingRobber: null,
-          pendingTrades: [],
-        };
         addLog(draft, `${playerName(draft, action.playerId)}が手番を終了しました。`);
+
+        // Seat order starting right after the player who just went, wrapping around --
+        // this is "everyone else, in rotation order" either way the rule below branches.
+        const currentIndex = draft.players.findIndex((p) => p.id === action.playerId);
+        const order = draft.players
+          .slice(currentIndex + 1)
+          .concat(draft.players.slice(0, currentIndex))
+          .map((p) => p.id);
+        const nextPlayerId = order[0] ?? action.playerId;
+
+        if (draft.specialBuildingPhaseEnabled && order.length > 0) {
+          const [activePlayerId, ...queue] = order;
+          draft.turn!.specialBuild = { queue, activePlayerId, nextPlayerId };
+          draft.turn!.pendingTrades = []; // no trading is allowed once the special build phase starts
+          addLog(draft, `${playerName(draft, activePlayerId)}の特別建造フェイズです。`);
+        } else {
+          draft.turn = {
+            turnNumber: draft.turn!.turnNumber + 1,
+            currentPlayerId: nextPlayerId,
+            hasRolled: false,
+            lastDiceRoll: null,
+            devCardPlayedThisTurn: false,
+            pendingRobber: null,
+            pendingTrades: [],
+            specialBuild: null,
+          };
+          checkWinCondition(draft, nextPlayerId);
+        }
+      });
+
+    case 'PASS_SPECIAL_BUILD':
+      return produce(state, (draft) => {
+        const sb = draft.turn!.specialBuild!;
+        if (sb.queue.length === 0) {
+          draft.turn = {
+            turnNumber: draft.turn!.turnNumber + 1,
+            currentPlayerId: sb.nextPlayerId,
+            hasRolled: false,
+            lastDiceRoll: null,
+            devCardPlayedThisTurn: false,
+            pendingRobber: null,
+            pendingTrades: [],
+            specialBuild: null,
+          };
+          addLog(draft, `${playerName(draft, sb.nextPlayerId)}の手番です。`);
+          checkWinCondition(draft, sb.nextPlayerId);
+        } else {
+          const [activePlayerId, ...queue] = sb.queue;
+          draft.turn!.specialBuild = { queue, activePlayerId, nextPlayerId: sb.nextPlayerId };
+          addLog(draft, `${playerName(draft, activePlayerId)}の特別建造フェイズです。`);
+        }
       });
 
     default:

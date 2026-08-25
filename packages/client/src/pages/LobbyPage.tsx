@@ -52,6 +52,12 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
     })
   }
 
+  function handleSetSpecialBuildingPhase(enabled: boolean) {
+    socket.emit('set_special_building_phase', { enabled }, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   return (
     <div className="page lobby-page">
       <h1>待機室</h1>
@@ -97,6 +103,22 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
           ))
         ) : (
           <span>{BOARD_MODE_LABELS_JA[roomInfo.boardMode]}</span>
+        )}
+      </div>
+
+      <div className="board-mode-picker">
+        <span className="board-mode-picker__label">特別建造フェイズ:</span>
+        {isHost ? (
+          <>
+            <button type="button" className={!roomInfo.specialBuildingPhaseEnabled ? 'active' : ''} onClick={() => handleSetSpecialBuildingPhase(false)}>
+              なし
+            </button>
+            <button type="button" className={roomInfo.specialBuildingPhaseEnabled ? 'active' : ''} onClick={() => handleSetSpecialBuildingPhase(true)}>
+              あり
+            </button>
+          </>
+        ) : (
+          <span>{roomInfo.specialBuildingPhaseEnabled ? 'あり' : 'なし'}</span>
         )}
       </div>
 

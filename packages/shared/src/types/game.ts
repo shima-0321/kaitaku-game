@@ -81,6 +81,22 @@ export interface TradeOffer {
   acceptedBy: string[];
 }
 
+/**
+ * The optional "special building phase" (5-6 player extension rule, offered here regardless of
+ * player count): after a player ends their turn, every other player gets one build slot in turn
+ * order before the real next turn begins. `currentPlayerId` stays frozen on whoever just ended
+ * their turn while this is active.
+ */
+export interface SpecialBuildState {
+  /** Player ids still waiting for their slot, in turn order (does not include activePlayerId). */
+  queue: string[];
+  /** Whose special-build slot is active right now. */
+  activePlayerId: string;
+  /** Who becomes the real current player once the queue and active slot are both exhausted --
+   * the same player who would have gone next if the phase were disabled. */
+  nextPlayerId: string;
+}
+
 export interface TurnState {
   turnNumber: number;
   currentPlayerId: string;
@@ -89,6 +105,7 @@ export interface TurnState {
   devCardPlayedThisTurn: boolean;
   pendingRobber: PendingRobberState | null;
   pendingTrades: TradeOffer[];
+  specialBuild: SpecialBuildState | null;
 }
 
 export type GamePhase = 'LOBBY' | 'SETUP' | 'PLAYING' | 'GAME_OVER';
@@ -110,6 +127,7 @@ export interface GameState {
   hostPlayerId: string;
   phase: GamePhase;
   boardMode: BoardMode;
+  specialBuildingPhaseEnabled: boolean;
   board: Board;
   bank: Bank;
   players: Player[];

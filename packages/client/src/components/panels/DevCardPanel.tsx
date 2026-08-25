@@ -24,7 +24,11 @@ export function DevCardPanel({
   if (!clientState || !playerId) return null
   const me = clientState.me
   const isMyTurn = clientState.phase === 'PLAYING' && clientState.turn?.currentPlayerId === playerId
-  const canPlayAny = isMyTurn && !!clientState.turn?.hasRolled && !clientState.turn.pendingRobber && !clientState.turn.devCardPlayedThisTurn
+  const specialBuild = clientState.turn?.specialBuild ?? null
+  const isMySpecialBuildTurn = specialBuild?.activePlayerId === playerId
+  // Buying is also allowed during your own special-build slot; playing a card never is (for anyone).
+  const canBuyNow = specialBuild ? isMySpecialBuildTurn : isMyTurn && !!clientState.turn?.hasRolled
+  const canPlayAny = isMyTurn && !specialBuild && !!clientState.turn?.hasRolled && !clientState.turn.pendingRobber && !clientState.turn.devCardPlayedThisTurn
 
   function handleBuy() {
     socket.emit('buy_dev_card', {}, (ack) => {
@@ -45,7 +49,7 @@ export function DevCardPanel({
   return (
     <section className="dev-card-panel panel-section">
       <h2>発展カード ({me.devCards.filter((c) => c.used).length + unusedCards.length}枚所持)</h2>
-      <button disabled={!canAfford(me.resources, DEV_CARD_COST) || !isMyTurn || !clientState.turn?.hasRolled} onClick={handleBuy}>
+      <button disabled={!canAfford(me.resources, DEV_CARD_COST) || !canBuyNow} onClick={handleBuy}>
         購入する
       </button>
 

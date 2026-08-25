@@ -32,7 +32,8 @@ export type GameAction =
   | { type: 'RESPOND_TRADE'; playerId: string; tradeId: string; accept: boolean }
   | { type: 'CANCEL_TRADE'; playerId: string; tradeId: string }
   | { type: 'FINALIZE_TRADE'; playerId: string; tradeId: string; withPlayerId: string }
-  | { type: 'END_TURN'; playerId: string };
+  | { type: 'END_TURN'; playerId: string }
+  | { type: 'PASS_SPECIAL_BUILD'; playerId: string };
 
 export interface ValidationResult {
   ok: boolean;

@@ -87,6 +87,9 @@ export interface BankTradePayload {
 export interface SetBoardModePayload {
   mode: BoardMode;
 }
+export interface SetSpecialBuildingPhasePayload {
+  enabled: boolean;
+}
 
 // ---- Client -> Server event map ----
 export interface ClientToServerEvents {
@@ -98,6 +101,7 @@ export interface ClientToServerEvents {
   add_bot: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
   remove_bot: (payload: { playerId: string }, cb: (ack: Ack) => void) => void;
   set_board_mode: (payload: SetBoardModePayload, cb: (ack: Ack) => void) => void;
+  set_special_building_phase: (payload: SetSpecialBuildingPhasePayload, cb: (ack: Ack) => void) => void;
   place_setup_settlement: (payload: PlaceSetupSettlementPayload, cb: (ack: Ack) => void) => void;
   place_setup_road: (payload: PlaceSetupRoadPayload, cb: (ack: Ack) => void) => void;
   roll_dice: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
@@ -115,6 +119,7 @@ export interface ClientToServerEvents {
   finalize_trade: (payload: FinalizeTradePayload, cb: (ack: Ack) => void) => void;
   bank_trade: (payload: BankTradePayload, cb: (ack: Ack) => void) => void;
   end_turn: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
+  pass_special_build: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
 }
 
 // ---- Server -> Client event map ----
@@ -129,6 +134,7 @@ export interface RoomUpdatedPayload {
   roomCode: string;
   hostPlayerId: string;
   boardMode: BoardMode;
+  specialBuildingPhaseEnabled: boolean;
   players: RoomPlayerSummary[];
 }
 export interface DiceRolledPayload {

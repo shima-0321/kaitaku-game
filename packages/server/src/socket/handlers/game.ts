@@ -187,4 +187,11 @@ export function registerGameHandlers({ io, socket, roomManager }: HandlerContext
     dispatch(io, resolved.room, { type: 'END_TURN', playerId: resolved.playerId }, cb);
     afterHumanAction(resolved.room);
   });
+
+  socket.on('pass_special_build', (_payload, cb) => {
+    const resolved = resolvePlayerAction(roomManager, socket.id, cb);
+    if (!resolved) return;
+    dispatch(io, resolved.room, { type: 'PASS_SPECIAL_BUILD', playerId: resolved.playerId }, cb);
+    afterHumanAction(resolved.room);
+  });
 }

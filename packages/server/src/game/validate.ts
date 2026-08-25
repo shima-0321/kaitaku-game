@@ -57,6 +57,8 @@ export function validateAction(state: GameState, action: GameAction): Validation
       return validateFinalizeTrade(state, action.playerId, action.tradeId, action.withPlayerId);
     case 'END_TURN':
       return validateEndTurn(state, action.playerId);
+    case 'PASS_SPECIAL_BUILD':
+      return validatePassSpecialBuild(state, action.playerId);
     default:
       return invalid('unknown action');
   }
@@ -157,8 +159,25 @@ function validateStealFrom(state: GameState, playerId: string, targetPlayerId: s
   return VALID;
 }
 
+/** Gate for actions only ever allowed on your own regular turn (trades) -- the special building
+ * phase blocks these for everyone, including whoever's regular turn is frozen while it runs. */
 function requireActiveBuildPhase(state: GameState, playerId: string): ValidationResult | null {
   if (state.phase !== 'PLAYING' || !state.turn) return invalid('not in playing phase');
+  if (state.turn.specialBuild) return invalid('cannot trade during the special building phase');
+  if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
+  if (!state.turn.hasRolled) return invalid('roll the dice first');
+  if (state.turn.pendingRobber) return invalid('resolve the robber first');
+  return null;
+}
+
+/** Gate for building/buying, which the active special-build player may also do (without having
+ * rolled -- that only matters on a regular turn). */
+function requireActiveBuildOrSpecialBuild(state: GameState, playerId: string): ValidationResult | null {
+  if (state.phase !== 'PLAYING' || !state.turn) return invalid('not in playing phase');
+  if (state.turn.specialBuild) {
+    if (state.turn.specialBuild.activePlayerId !== playerId) return invalid('not your special build turn');
+    return null;
+  }
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
@@ -166,7 +185,7 @@ function requireActiveBuildPhase(state: GameState, playerId: string): Validation
 }
 
 function validateBuildRoad(state: GameState, playerId: string, edgeId: string): ValidationResult {
-  const phaseErr = requireActiveBuildPhase(state, playerId);
+  const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
   if (phaseErr) return phaseErr;
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
@@ -178,7 +197,7 @@ function validateBuildRoad(state: GameState, playerId: string, edgeId: string): 
 }
 
 function validateBuildSettlement(state: GameState, playerId: string, vertexId: string): ValidationResult {
-  const phaseErr = requireActiveBuildPhase(state, playerId);
+  const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
   if (phaseErr) return phaseErr;
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
@@ -190,7 +209,7 @@ function validateBuildSettlement(state: GameState, playerId: string, vertexId: s
 }
 
 function validateBuildCity(state: GameState, playerId: string, vertexId: string): ValidationResult {
-  const phaseErr = requireActiveBuildPhase(state, playerId);
+  const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
   if (phaseErr) return phaseErr;
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
@@ -202,7 +221,7 @@ function validateBuildCity(state: GameState, playerId: string, vertexId: string)
 }
 
 function validateBuyDevCard(state: GameState, playerId: string): ValidationResult {
-  const phaseErr = requireActiveBuildPhase(state, playerId);
+  const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
   if (phaseErr) return phaseErr;
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
@@ -241,6 +260,7 @@ function validatePlayDevCard(
   params: PlayDevCardParams | undefined,
 ): ValidationResult {
   if (state.phase !== 'PLAYING' || !state.turn) return invalid('not in playing phase');
+  if (state.turn.specialBuild) return invalid('cannot play a development card during the special building phase');
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
@@ -286,9 +306,16 @@ function validatePlayDevCard(
 
 function validateEndTurn(state: GameState, playerId: string): ValidationResult {
   if (state.phase !== 'PLAYING' || !state.turn) return invalid('not in playing phase');
+  if (state.turn.specialBuild) return invalid('special building phase is in progress');
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
+  return VALID;
+}
+
+function validatePassSpecialBuild(state: GameState, playerId: string): ValidationResult {
+  if (state.phase !== 'PLAYING' || !state.turn?.specialBuild) return invalid('no special build phase is active');
+  if (state.turn.specialBuild.activePlayerId !== playerId) return invalid('not your special build turn');
   return VALID;
 }
 

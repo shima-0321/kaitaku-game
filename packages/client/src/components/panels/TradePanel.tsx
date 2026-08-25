@@ -100,7 +100,7 @@ export function TradePanel() {
 
   const me = clientState.me
   const isMyTurn = clientState.phase === 'PLAYING' && clientState.turn?.currentPlayerId === playerId
-  const canTradeNow = isMyTurn && !!clientState.turn?.hasRolled && !clientState.turn.pendingRobber
+  const canTradeNow = isMyTurn && !!clientState.turn?.hasRolled && !clientState.turn.pendingRobber && !clientState.turn.specialBuild
   const ratios = calculateTradeRatios(clientState.board, playerId)
 
   function handleBankTrade() {

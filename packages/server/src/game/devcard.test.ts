@@ -42,6 +42,7 @@ function makePlayingState(devCardDeck: DevCard[] = []): GameState {
       devCardPlayedThisTurn: false,
       pendingRobber: null,
       pendingTrades: [],
+      specialBuild: null,
     },
   };
 }

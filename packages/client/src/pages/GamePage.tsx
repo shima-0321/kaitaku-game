@@ -60,7 +60,10 @@ export function GamePage() {
     return () => stopBgm()
   }, [])
 
-  const isMyTurnForSound = clientState?.phase === 'PLAYING' && clientState?.turn?.currentPlayerId === playerId
+  const isMyTurnForSound =
+    clientState?.phase === 'PLAYING' &&
+    ((clientState?.turn?.currentPlayerId === playerId && !clientState?.turn?.specialBuild) ||
+      clientState?.turn?.specialBuild?.activePlayerId === playerId)
   const prevIsMyTurnRef = useRef<boolean | null>(null)
   const [showTurnBanner, setShowTurnBanner] = useState(false)
   useEffect(() => {
@@ -148,6 +151,8 @@ export function GamePage() {
   const myDiscardRequired = pendingRobber?.stage === 'DISCARD' ? (pendingRobber.discardsRemaining[playerId] ?? 0) : 0
   const isMoveRobberStage = isMyTurn && pendingRobber?.stage === 'MOVE_ROBBER'
   const isSelectTargetStage = isMyTurn && pendingRobber?.stage === 'SELECT_TARGET'
+  const specialBuild = clientState.turn?.specialBuild ?? null
+  const isMySpecialBuildTurn = clientState.phase === 'PLAYING' && specialBuild?.activePlayerId === playerId
 
   // A build button should only glow/be enabled when the player can actually afford it AND has
   // both remaining stock and at least one legal spot on the board -- resources alone aren't enough.
@@ -166,7 +171,8 @@ export function GamePage() {
 
   // Mirrors the condition under which the action-bar always shows at least one enabled (pulsing)
   // button, so the mobile "アクション" tab itself can pulse without the popup being open.
-  const hasPendingAction = clientState.phase === 'PLAYING' && !pendingRobber && isMyTurn
+  const hasPendingAction =
+    clientState.phase === 'PLAYING' && !pendingRobber && ((isMyTurn && !specialBuild) || isMySpecialBuildTurn)
 
   const selectableVertexIds = new Set<VertexId>()
   const selectableEdgeIds = new Set<EdgeId>()
@@ -217,7 +223,7 @@ export function GamePage() {
         if (canPlaceSettlement(clientState.board, vertex.id, playerId, false)) selectableVertexIds.add(vertex.id)
       }
     }
-  } else if (isMyTurn && clientState.turn?.hasRolled && !pendingRobber) {
+  } else if ((isMyTurn && clientState.turn?.hasRolled && !specialBuild && !pendingRobber) || isMySpecialBuildTurn) {
     // Only highlight a mode's targets when the resources for it are actually there -- otherwise
     // a spot can look clickable (position is legal) while the server still rejects it for cost.
     if (buildMode === 'ROAD' && canBuildRoad) {
@@ -319,6 +325,16 @@ export function GamePage() {
     })
   }
 
+  function handlePassSpecialBuild() {
+    setBuildMode('NONE')
+    setRoadBuildingDevCardId(null)
+    setRoadBuildingFirstEdge(null)
+    setMobilePopup(null)
+    socket.emit('pass_special_build', {}, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   // Each of these renders one self-contained group of the sidebar. They're called once for the
   // desktop sidebar (all groups inline) and once more inside whichever mobile popup is open
   // (grouped as 情報/アクション[手札を含む]/交易), so the two layouts never drift out of sync.
@@ -349,6 +365,7 @@ export function GamePage() {
               {p.isBot && '\u{1F916} '}
               {p.name}
               {state.turn?.currentPlayerId === p.id && ' ▶'}
+              {state.turn?.specialBuild?.activePlayerId === p.id && ' 🔨'}
               {' - 得点 '}
               {p.id === me.id ? me.totalVictoryPoints : p.visibleVictoryPoints}
               {' / 資源 '}
@@ -460,26 +477,52 @@ export function GamePage() {
     return state.phase === 'PLAYING' ? <TradePanel /> : null
   }
 
+  function renderBuildModeButtons() {
+    return (
+      <>
+        <button className={buildMode === 'ROAD' ? 'active' : ''} disabled={!canBuildRoad} onClick={() => selectBuildMode('ROAD')}>
+          道路を建設
+        </button>
+        <button
+          className={buildMode === 'SETTLEMENT' ? 'active' : ''}
+          disabled={!canBuildSettlement}
+          onClick={() => selectBuildMode('SETTLEMENT')}
+        >
+          開拓地を建設
+        </button>
+        <button className={buildMode === 'CITY' ? 'active' : ''} disabled={!canBuildCity} onClick={() => selectBuildMode('CITY')}>
+          都市に更新
+        </button>
+      </>
+    )
+  }
+
   function renderActionBarSection() {
     if (state.phase !== 'PLAYING' || pendingRobber) return null
+
+    if (specialBuild) {
+      const activeName = [me, ...state.players].find((p) => p.id === specialBuild.activePlayerId)?.name ?? '相手'
+      return (
+        <section className="action-bar panel-section">
+          {isMySpecialBuildTurn ? (
+            <>
+              {renderBuildModeButtons()}
+              <button onClick={handlePassSpecialBuild}>パス（特別建造フェイズを終える）</button>
+            </>
+          ) : (
+            <p>{activeName}さんの特別建造フェイズです</p>
+          )}
+          <DiceRoller />
+        </section>
+      )
+    }
+
     return (
       <section className="action-bar panel-section">
         {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
         {isMyTurn && state.turn?.hasRolled && (
           <>
-            <button className={buildMode === 'ROAD' ? 'active' : ''} disabled={!canBuildRoad} onClick={() => selectBuildMode('ROAD')}>
-              道路を建設
-            </button>
-            <button
-              className={buildMode === 'SETTLEMENT' ? 'active' : ''}
-              disabled={!canBuildSettlement}
-              onClick={() => selectBuildMode('SETTLEMENT')}
-            >
-              開拓地を建設
-            </button>
-            <button className={buildMode === 'CITY' ? 'active' : ''} disabled={!canBuildCity} onClick={() => selectBuildMode('CITY')}>
-              都市に更新
-            </button>
+            {renderBuildModeButtons()}
             <button onClick={handleEndTurn}>手番を終了</button>
           </>
         )}
