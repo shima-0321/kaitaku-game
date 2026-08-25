@@ -53,6 +53,7 @@ function makeSeafarersPlayingState(seed: number): GameState {
       pendingTrades: [],
       specialBuild: null,
       pendingGoldPick: null,
+      shipMovedThisTurn: false,
     },
   };
 }
@@ -67,6 +68,25 @@ function findEdge(state: GameState, matches: (terrain: string) => boolean) {
   return Object.values(state.board.edges).find(
     (e) => e.hexIds.length > 0 && e.hexIds.every((id) => matches(state.board.tiles[id].terrain)),
   )!;
+}
+
+function isSeaOnlyEdge(state: GameState, edgeId: string): boolean {
+  const e = state.board.edges[edgeId];
+  return e.hexIds.length > 0 && e.hexIds.every((id) => state.board.tiles[id].terrain === 'SEA');
+}
+
+function otherVertex(edge: { vertexIds: [string, string] }, vertexId: string): string {
+  return edge.vertexIds[0] === vertexId ? edge.vertexIds[1] : edge.vertexIds[0];
+}
+
+/** A vertex deep in open water with 3+ purely-sea edges radiating from it -- gives room to build a
+ * two-ship chain (anchor -> junction -> loose end) plus a third edge as a move destination. */
+function findSeaJunction(state: GameState): { center: string; edgeIds: string[] } {
+  for (const v of Object.values(state.board.vertices)) {
+    const seaEdges = v.edgeIds.filter((eId) => isSeaOnlyEdge(state, eId));
+    if (seaEdges.length >= 3) return { center: v.id, edgeIds: seaEdges };
+  }
+  throw new Error('no sea junction found');
 }
 
 describe('building ships', () => {
@@ -231,5 +251,65 @@ describe('gold hex picks', () => {
     withState = { ...withState, bank: { ...withState.bank, resources: { ...withState.bank.resources, ORE: 0 } } };
     expect(validateAction(withState, { type: 'SELECT_GOLD_RESOURCES', playerId: 'p0', resources: { ORE: 1 } }).ok).toBe(false);
     expect(validateAction(withState, { type: 'SELECT_GOLD_RESOURCES', playerId: 'p0', resources: { GRAIN: 1 } }).ok).toBe(true);
+  });
+});
+
+describe('moving ships', () => {
+  /** Builds a p0 chain of settlement -> ship(eAnchor) -> junction -> ship(eLoose) -> open water,
+   * with a third sea edge (eDestination) off the same junction as a legal move target. */
+  function stateWithShipChain(seed: number) {
+    const state = makeSeafarersPlayingState(seed);
+    const junction = findSeaJunction(state);
+    const [eAnchorId, eLooseId, eDestinationId] = junction.edgeIds;
+    const eAnchor = state.board.edges[eAnchorId];
+    const eLoose = state.board.edges[eLooseId];
+    const anchorVertexId = otherVertex(eAnchor, junction.center);
+
+    const withState: GameState = {
+      ...state,
+      turn: { ...state.turn!, hasRolled: true },
+      board: {
+        ...state.board,
+        vertices: {
+          ...state.board.vertices,
+          [anchorVertexId]: { ...state.board.vertices[anchorVertexId], building: { playerId: 'p0', type: 'SETTLEMENT' } },
+        },
+        edges: {
+          ...state.board.edges,
+          [eAnchorId]: { ...eAnchor, ship: { playerId: 'p0' } },
+          [eLooseId]: { ...eLoose, ship: { playerId: 'p0' } },
+        },
+      },
+    };
+    return { state: withState, eAnchorId, eLooseId, eDestinationId };
+  }
+
+  it('rejects moving a ship that anchors a settlement, and moves the loose end of the route', () => {
+    const { state, eAnchorId, eLooseId, eDestinationId } = stateWithShipChain(21);
+
+    expect(validateAction(state, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eAnchorId, toEdgeId: eDestinationId }).ok).toBe(false);
+    expect(validateAction(state, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eLooseId, toEdgeId: eDestinationId }).ok).toBe(true);
+
+    const result = applyAction(state, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eLooseId, toEdgeId: eDestinationId });
+    expect(result.board.edges[eLooseId].ship).toBeNull();
+    expect(result.board.edges[eDestinationId].ship?.playerId).toBe('p0');
+    expect(result.board.edges[eAnchorId].ship?.playerId).toBe('p0'); // untouched
+    expect(result.turn!.shipMovedThisTurn).toBe(true);
+  });
+
+  it('allows only one ship move per turn', () => {
+    const { state, eLooseId, eDestinationId } = stateWithShipChain(22);
+    let result = applyAction(state, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eLooseId, toEdgeId: eDestinationId });
+    expect(validateAction(result, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eDestinationId, toEdgeId: eLooseId }).ok).toBe(false);
+
+    result = applyAction(result, { type: 'END_TURN', playerId: 'p0' });
+    // moving is a per-turn allowance, not exhausted once and for all
+    expect(result.turn!.shipMovedThisTurn).toBe(false);
+  });
+
+  it('rejects a ship move made without having rolled', () => {
+    const { state, eLooseId, eDestinationId } = stateWithShipChain(23);
+    const notRolled: GameState = { ...state, turn: { ...state.turn!, hasRolled: false } };
+    expect(validateAction(notRolled, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eLooseId, toEdgeId: eDestinationId }).ok).toBe(false);
   });
 });

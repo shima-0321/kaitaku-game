@@ -3,6 +3,7 @@ import {
   canPlaceSettlement,
   canPlaceRoad,
   canPlaceShip,
+  canMoveShip,
   canUpgradeToCity,
   canAfford,
   totalResources,
@@ -35,7 +36,7 @@ import { InfoModal } from '../components/modals/InfoModal'
 import { PLAYER_COLOR_HEX } from '../lib/colors'
 import { startBgm, stopBgm, playGameSound, SOUND_URLS } from '../lib/sound'
 
-type BuildMode = 'NONE' | 'ROAD' | 'SHIP' | 'SETTLEMENT' | 'CITY'
+type BuildMode = 'NONE' | 'ROAD' | 'SHIP' | 'SETTLEMENT' | 'CITY' | 'MOVE_SHIP'
 
 const RESOURCE_ORDER: ResourceType[] = ['BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE']
 function formatCost(cost: Partial<ResourceHand>): string {
@@ -52,6 +53,7 @@ export function GamePage() {
   const [buildMode, setBuildMode] = useState<BuildMode>('NONE')
   const [roadBuildingDevCardId, setRoadBuildingDevCardId] = useState<string | null>(null)
   const [roadBuildingFirstEdge, setRoadBuildingFirstEdge] = useState<EdgeId | null>(null)
+  const [shipMoveFromEdge, setShipMoveFromEdge] = useState<EdgeId | null>(null)
   const [yearOfPlentyDevCardId, setYearOfPlentyDevCardId] = useState<string | null>(null)
   const [monopolyDevCardId, setMonopolyDevCardId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
@@ -169,6 +171,9 @@ export function GamePage() {
     canAfford(me.resources, SHIP_COST) &&
     me.buildingStock.ships > 0 &&
     Object.values(clientState.board.edges).some((e) => canPlaceShip(clientState.board, e.id, playerId))
+  const canMoveAnyShip =
+    !clientState.turn?.shipMovedThisTurn &&
+    Object.values(clientState.board.edges).some((e) => canMoveShip(clientState.board, e.id, playerId))
   const canBuildSettlement =
     canAfford(me.resources, SETTLEMENT_COST) &&
     me.buildingStock.settlements > 0 &&
@@ -276,6 +281,24 @@ export function GamePage() {
       for (const vertex of Object.values(clientState.board.vertices)) {
         if (canUpgradeToCity(clientState.board, vertex.id, playerId)) selectableVertexIds.add(vertex.id)
       }
+    } else if (buildMode === 'MOVE_SHIP' && canMoveAnyShip) {
+      if (!shipMoveFromEdge) {
+        for (const edge of Object.values(clientState.board.edges)) {
+          if (canMoveShip(clientState.board, edge.id, playerId)) selectableEdgeIds.add(edge.id)
+        }
+      } else {
+        const virtualBoard = {
+          ...clientState.board,
+          edges: {
+            ...clientState.board.edges,
+            [shipMoveFromEdge]: { ...clientState.board.edges[shipMoveFromEdge], ship: null },
+          },
+        }
+        for (const edge of Object.values(clientState.board.edges)) {
+          if (edge.id === shipMoveFromEdge) continue
+          if (canPlaceShip(virtualBoard, edge.id, playerId)) selectableEdgeIds.add(edge.id)
+        }
+      }
     }
   }
 
@@ -333,6 +356,16 @@ export function GamePage() {
         if (!ack.ok) setLastError(ack.error)
         else setBuildMode('NONE')
       })
+    } else if (buildMode === 'MOVE_SHIP') {
+      if (!shipMoveFromEdge) {
+        setShipMoveFromEdge(edgeId)
+        return
+      }
+      socket.emit('move_ship', { fromEdgeId: shipMoveFromEdge, toEdgeId: edgeId }, (ack) => {
+        if (!ack.ok) setLastError(ack.error)
+        setBuildMode('NONE')
+        setShipMoveFromEdge(null)
+      })
     }
   }
 
@@ -356,6 +389,7 @@ export function GamePage() {
   function selectBuildMode(mode: Exclude<BuildMode, 'NONE'>) {
     const next = buildMode === mode ? 'NONE' : mode
     setBuildMode(next)
+    setShipMoveFromEdge(null)
     if (next !== 'NONE') setMobilePopup(null)
   }
 
@@ -369,6 +403,7 @@ export function GamePage() {
     setBuildMode('NONE')
     setRoadBuildingDevCardId(null)
     setRoadBuildingFirstEdge(null)
+    setShipMoveFromEdge(null)
     setMobilePopup(null)
     socket.emit('end_turn', {}, (ack) => {
       if (!ack.ok) setLastError(ack.error)
@@ -379,6 +414,7 @@ export function GamePage() {
     setBuildMode('NONE')
     setRoadBuildingDevCardId(null)
     setRoadBuildingFirstEdge(null)
+    setShipMoveFromEdge(null)
     setMobilePopup(null)
     socket.emit('pass_special_build', {}, (ack) => {
       if (!ack.ok) setLastError(ack.error)
@@ -554,6 +590,15 @@ export function GamePage() {
         <button className={buildMode === 'CITY' ? 'active' : ''} disabled={!canBuildCity} onClick={() => selectBuildMode('CITY')}>
           都市に更新
         </button>
+        {state.seafarersEnabled && (
+          <button
+            className={buildMode === 'MOVE_SHIP' ? 'active' : ''}
+            disabled={!canMoveAnyShip}
+            onClick={() => selectBuildMode('MOVE_SHIP')}
+          >
+            船を移動
+          </button>
+        )}
       </>
     )
   }

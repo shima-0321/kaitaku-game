@@ -39,6 +39,7 @@ function makePlayingState(): GameState {
       pendingTrades: [],
       specialBuild: null,
       pendingGoldPick: null,
+      shipMovedThisTurn: false,
     },
   };
 }

@@ -18,6 +18,7 @@ export type GameAction =
   | { type: 'STEAL_FROM'; playerId: string; targetPlayerId: string; stolenResource: ResourceType | null }
   | { type: 'BUILD_ROAD'; playerId: string; edgeId: string }
   | { type: 'BUILD_SHIP'; playerId: string; edgeId: string }
+  | { type: 'MOVE_SHIP'; playerId: string; fromEdgeId: string; toEdgeId: string }
   | { type: 'SELECT_GOLD_RESOURCES'; playerId: string; resources: Partial<ResourceHand> }
   | { type: 'BUILD_SETTLEMENT'; playerId: string; vertexId: string }
   | { type: 'BUILD_CITY'; playerId: string; vertexId: string }

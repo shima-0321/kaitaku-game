@@ -4,6 +4,7 @@ import {
   canPlaceSettlement,
   canPlaceRoad,
   canPlaceShip,
+  canMoveShip,
   calculateLongestRoad,
   determineLongestRoadHolder,
   determineLargestArmyHolder,
@@ -157,6 +158,27 @@ describe('legalMoves', () => {
     board.vertices[landVertex] = { ...board.vertices[landVertex], building: { playerId: 'p1', type: 'SETTLEMENT' } };
     expect(canPlaceRoad(board, landOnlyEdge.id, 'p1')).toBe(true);
     expect(canPlaceShip(board, landOnlyEdge.id, 'p1')).toBe(false);
+  });
+
+  it('canMoveShip only allows picking up the loose end of a route, never one anchored by a settlement', () => {
+    const board = generateBoard({ rng: mulberry32(3), seafarers: true });
+    const isSeaOnlyEdge = (edgeId: string) => {
+      const e = board.edges[edgeId];
+      return e.hexIds.length > 0 && e.hexIds.every((id) => board.tiles[id].terrain === 'SEA');
+    };
+    // find a vertex deep in open water with 2+ purely-sea edges, to build a two-ship chain
+    const junction = Object.values(board.vertices).find((v) => v.edgeIds.filter(isSeaOnlyEdge).length >= 2)!;
+    const [eAnchorId, eLooseId] = junction.edgeIds.filter(isSeaOnlyEdge);
+    const eAnchor = board.edges[eAnchorId];
+    const anchorVertexId = eAnchor.vertexIds[0] === junction.id ? eAnchor.vertexIds[1] : eAnchor.vertexIds[0];
+
+    board.vertices[anchorVertexId] = { ...board.vertices[anchorVertexId], building: { playerId: 'p1', type: 'SETTLEMENT' } };
+    board.edges[eAnchorId] = { ...eAnchor, ship: { playerId: 'p1' } };
+    board.edges[eLooseId] = { ...board.edges[eLooseId], ship: { playerId: 'p1' } };
+
+    expect(canMoveShip(board, eAnchorId, 'p1')).toBe(false); // touches p1's own settlement
+    expect(canMoveShip(board, eLooseId, 'p1')).toBe(true); // open end, free to relocate
+    expect(canMoveShip(board, eLooseId, 'p2')).toBe(false); // not p2's ship
   });
 
   it('counts a trail that mixes roads and ships as one continuous route', () => {

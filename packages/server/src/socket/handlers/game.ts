@@ -118,6 +118,13 @@ export function registerGameHandlers({ io, socket, roomManager }: HandlerContext
     afterHumanAction(resolved.room);
   });
 
+  socket.on('move_ship', ({ fromEdgeId, toEdgeId }, cb) => {
+    const resolved = resolvePlayerAction(roomManager, socket.id, cb);
+    if (!resolved) return;
+    dispatch(io, resolved.room, { type: 'MOVE_SHIP', playerId: resolved.playerId, fromEdgeId, toEdgeId }, cb);
+    afterHumanAction(resolved.room);
+  });
+
   socket.on('build_settlement', ({ vertexId }, cb) => {
     const resolved = resolvePlayerAction(roomManager, socket.id, cb);
     if (!resolved) return;

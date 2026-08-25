@@ -69,6 +69,21 @@ export function canPlaceShip(board: Board, edgeId: EdgeId, playerId: string): bo
   return false;
 }
 
+/**
+ * Seafarers: an already-placed ship can be picked up and moved elsewhere only if it's a "loose
+ * end" of the player's route -- neither of its vertices carries a settlement/city (yours or an
+ * opponent's), and at least one of its two vertices has no other road/ship of this player's, so
+ * removing it can never split an existing route into two disconnected pieces.
+ */
+export function canMoveShip(board: Board, edgeId: EdgeId, playerId: string): boolean {
+  const edge = board.edges[edgeId];
+  if (!edge || edge.ship?.playerId !== playerId) return false;
+  for (const vId of edge.vertexIds) {
+    if (board.vertices[vId]?.building) return false;
+  }
+  return edge.vertexIds.some((vId) => !hasOwnRouteAt(board, vId, playerId, edgeId));
+}
+
 export function canUpgradeToCity(board: Board, vertexId: VertexId, playerId: string): boolean {
   const vertex = board.vertices[vertexId];
   if (!vertex) return false;

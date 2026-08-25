@@ -271,6 +271,11 @@ export function HexBoard({
         const color = piece ? playerColorById[piece.playerId] ?? '#000' : undefined
         return (
           <g key={edge.id}>
+            {/* a selectable edge that already carries a piece (e.g. a ship offered up to move) needs
+                its own highlight -- the normal white halo below is hidden behind the piece's color */}
+            {piece && selectable && (
+              <line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#ffd600" strokeWidth={16} strokeLinecap="round" opacity={0.75} />
+            )}
             {piece && (
               <line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#ffffff" strokeWidth={10} strokeLinecap="round" />
             )}
@@ -283,6 +288,18 @@ export function HexBoard({
               strokeWidth={piece ? 6 : 20}
               strokeLinecap="round"
               strokeDasharray={edge.ship ? '4,4' : undefined}
+              style={{ pointerEvents: 'none' }}
+            />
+            {/* invisible wide hit-target, kept separate from the (thin, piece-colored) visible line
+                above so a selectable ship stays comfortably clickable without changing its width */}
+            <line
+              x1={pA.x}
+              y1={pA.y}
+              x2={pB.x}
+              y2={pB.y}
+              stroke="transparent"
+              strokeWidth={20}
+              strokeLinecap="round"
               onClick={selectable ? () => onEdgeClick?.(edge.id) : undefined}
               style={{ cursor: selectable ? 'pointer' : 'default' }}
             />

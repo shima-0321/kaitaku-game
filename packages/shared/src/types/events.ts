@@ -102,6 +102,10 @@ export interface BuildShipPayload {
 export interface MovePiratePayload {
   hexId: HexId;
 }
+export interface MoveShipPayload {
+  fromEdgeId: EdgeId;
+  toEdgeId: EdgeId;
+}
 export interface SelectGoldResourcesPayload {
   resources: Partial<ResourceHand>;
 }
@@ -128,6 +132,7 @@ export interface ClientToServerEvents {
   steal_from: (payload: StealFromPayload, cb: (ack: Ack) => void) => void;
   build_road: (payload: BuildRoadPayload, cb: (ack: Ack) => void) => void;
   build_ship: (payload: BuildShipPayload, cb: (ack: Ack) => void) => void;
+  move_ship: (payload: MoveShipPayload, cb: (ack: Ack) => void) => void;
   select_gold_resources: (payload: SelectGoldResourcesPayload, cb: (ack: Ack) => void) => void;
   build_settlement: (payload: BuildSettlementPayload, cb: (ack: Ack) => void) => void;
   build_city: (payload: BuildCityPayload, cb: (ack: Ack) => void) => void;

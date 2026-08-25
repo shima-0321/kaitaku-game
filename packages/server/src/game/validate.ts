@@ -3,6 +3,7 @@ import {
   canPlaceSettlement,
   canPlaceRoad,
   canPlaceShip,
+  canMoveShip,
   canUpgradeToCity,
   canAfford,
   ROAD_COST,
@@ -44,6 +45,8 @@ export function validateAction(state: GameState, action: GameAction): Validation
       return validateBuildRoad(state, action.playerId, action.edgeId);
     case 'BUILD_SHIP':
       return validateBuildShip(state, action.playerId, action.edgeId);
+    case 'MOVE_SHIP':
+      return validateMoveShip(state, action.playerId, action.fromEdgeId, action.toEdgeId);
     case 'SELECT_GOLD_RESOURCES':
       return validateSelectGoldResources(state, action.playerId, action.resources);
     case 'BUILD_SETTLEMENT':
@@ -241,6 +244,28 @@ function validateBuildShip(state: GameState, playerId: string, edgeId: string): 
   if (!canAfford(player.resources, SHIP_COST)) return invalid('not enough resources for a ship');
   if (!state.board.edges[edgeId]) return invalid('unknown edge');
   if (!canPlaceShip(state.board, edgeId, playerId)) return invalid('illegal ship position');
+  return VALID;
+}
+
+/** Relocating a ship is free (no cost, no stock change) but limited to once per turn, and only
+ * from the loose end of a route -- see canMoveShip's doc comment for why. */
+function validateMoveShip(state: GameState, playerId: string, fromEdgeId: string, toEdgeId: string): ValidationResult {
+  const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
+  if (phaseErr) return phaseErr;
+  if (state.turn!.shipMovedThisTurn) return invalid('only one ship may be moved per turn');
+  if (fromEdgeId === toEdgeId) return invalid('must move the ship to a different edge');
+  if (!state.board.edges[fromEdgeId]) return invalid('unknown edge');
+  if (!state.board.edges[toEdgeId]) return invalid('unknown edge');
+  if (!canMoveShip(state.board, fromEdgeId, playerId)) {
+    return invalid('that ship cannot be moved (it anchors a settlement/city, or the rest of your route)');
+  }
+  // Evaluate the destination as if the ship had already been picked up, so its own vertex isn't
+  // counted as a (soon to be gone) connection point for itself.
+  const virtualBoard: Board = {
+    ...state.board,
+    edges: { ...state.board.edges, [fromEdgeId]: { ...state.board.edges[fromEdgeId], ship: null } },
+  };
+  if (!canPlaceShip(virtualBoard, toEdgeId, playerId)) return invalid('illegal ship destination');
   return VALID;
 }
 

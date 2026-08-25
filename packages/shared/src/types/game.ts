@@ -108,6 +108,8 @@ export interface TurnState {
   specialBuild: SpecialBuildState | null;
   /** Gold hex (Seafarers): playerId -> number of free resource picks still owed after this roll. */
   pendingGoldPick: Record<string, number> | null;
+  /** Seafarers: at most one ship may be relocated per turn. */
+  shipMovedThisTurn: boolean;
 }
 
 export type GamePhase = 'LOBBY' | 'SETUP' | 'PLAYING' | 'GAME_OVER';
