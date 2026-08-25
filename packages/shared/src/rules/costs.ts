@@ -4,8 +4,10 @@ export const ROAD_COST: Partial<ResourceHand> = { BRICK: 1, LUMBER: 1 };
 export const SETTLEMENT_COST: Partial<ResourceHand> = { BRICK: 1, LUMBER: 1, WOOL: 1, GRAIN: 1 };
 export const CITY_COST: Partial<ResourceHand> = { GRAIN: 2, ORE: 3 };
 export const DEV_CARD_COST: Partial<ResourceHand> = { WOOL: 1, GRAIN: 1, ORE: 1 };
+/** Seafarers ship: same "one edge" price tag as a road, just wool instead of brick. */
+export const SHIP_COST: Partial<ResourceHand> = { LUMBER: 1, WOOL: 1 };
 
-export const INITIAL_BUILDING_STOCK = { settlements: 5, cities: 4, roads: 15 };
+export const INITIAL_BUILDING_STOCK = { settlements: 5, cities: 4, roads: 15, ships: 15 };
 
 export const BANK_STARTING_RESOURCE_COUNT = 19;
 

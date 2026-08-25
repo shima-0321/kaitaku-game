@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   canPlaceSettlement,
   canPlaceRoad,
+  canPlaceShip,
   canUpgradeToCity,
   canAfford,
   totalResources,
@@ -10,6 +11,7 @@ import {
   SETTLEMENT_COST,
   CITY_COST,
   DEV_CARD_COST,
+  SHIP_COST,
   RESOURCE_LABELS_JA,
 } from '@catan-online/shared'
 import type { EdgeId, HexId, VertexId, ResourceHand, ResourceType } from '@catan-online/shared'
@@ -24,6 +26,7 @@ import { StealTargetModal } from '../components/modals/StealTargetModal'
 import { IncomingTradeModal } from '../components/modals/IncomingTradeModal'
 import { FinalizeTradeModal } from '../components/modals/FinalizeTradeModal'
 import { YearOfPlentyModal } from '../components/modals/YearOfPlentyModal'
+import { GoldPickModal } from '../components/modals/GoldPickModal'
 import { MonopolyModal } from '../components/modals/MonopolyModal'
 import { GameOverModal } from '../components/modals/GameOverModal'
 import { GameRulesModal } from '../components/modals/GameRulesModal'
@@ -32,7 +35,7 @@ import { InfoModal } from '../components/modals/InfoModal'
 import { PLAYER_COLOR_HEX } from '../lib/colors'
 import { startBgm, stopBgm, playGameSound, SOUND_URLS } from '../lib/sound'
 
-type BuildMode = 'NONE' | 'ROAD' | 'SETTLEMENT' | 'CITY'
+type BuildMode = 'NONE' | 'ROAD' | 'SHIP' | 'SETTLEMENT' | 'CITY'
 
 const RESOURCE_ORDER: ResourceType[] = ['BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE']
 function formatCost(cost: Partial<ResourceHand>): string {
@@ -153,6 +156,8 @@ export function GamePage() {
   const isSelectTargetStage = isMyTurn && pendingRobber?.stage === 'SELECT_TARGET'
   const specialBuild = clientState.turn?.specialBuild ?? null
   const isMySpecialBuildTurn = clientState.phase === 'PLAYING' && specialBuild?.activePlayerId === playerId
+  const pendingGoldPick = clientState.turn?.pendingGoldPick ?? null
+  const myGoldPickOwed = pendingGoldPick?.[playerId] ?? 0
 
   // A build button should only glow/be enabled when the player can actually afford it AND has
   // both remaining stock and at least one legal spot on the board -- resources alone aren't enough.
@@ -160,6 +165,10 @@ export function GamePage() {
     canAfford(me.resources, ROAD_COST) &&
     me.buildingStock.roads > 0 &&
     Object.values(clientState.board.edges).some((e) => canPlaceRoad(clientState.board, e.id, playerId))
+  const canBuildShip =
+    canAfford(me.resources, SHIP_COST) &&
+    me.buildingStock.ships > 0 &&
+    Object.values(clientState.board.edges).some((e) => canPlaceShip(clientState.board, e.id, playerId))
   const canBuildSettlement =
     canAfford(me.resources, SETTLEMENT_COST) &&
     me.buildingStock.settlements > 0 &&
@@ -172,26 +181,39 @@ export function GamePage() {
   // Mirrors the condition under which the action-bar always shows at least one enabled (pulsing)
   // button, so the mobile "アクション" tab itself can pulse without the popup being open.
   const hasPendingAction =
-    clientState.phase === 'PLAYING' && !pendingRobber && ((isMyTurn && !specialBuild) || isMySpecialBuildTurn)
+    clientState.phase === 'PLAYING' &&
+    !pendingRobber &&
+    !pendingGoldPick &&
+    ((isMyTurn && !specialBuild) || isMySpecialBuildTurn)
 
   const selectableVertexIds = new Set<VertexId>()
   const selectableEdgeIds = new Set<EdgeId>()
   const selectableHexIds = new Set<HexId>()
 
   if (isMoveRobberStage) {
-    // "Friendly Robber" house rule: can't target a hex touching a player who still only has their
-    // starting 2 visible points -- unless literally every other tile is protected too, in which
-    // case the restriction would soft-lock the move, so it's dropped for this pick (server-validated
-    // the same way, so this stays in sync with what the server will actually accept).
+    // "Friendly Robber" house rule only restricts the robber's own movement (not the pirate's --
+    // it's a land-robber-specific rule), so it's applied only to the land-tile half of the pool
+    // below. Can't target a hex touching a player who still only has their starting 2 visible
+    // points -- unless literally every other land tile is protected too, in which case the
+    // restriction would soft-lock the move, so it's dropped for this pick (server-validated the
+    // same way, so this stays in sync with what the server will actually accept).
     const visibleVPById = new Map<string, number>([[me.id, me.visibleVictoryPoints], ...state.players.map((p) => [p.id, p.visibleVictoryPoints] as const)])
     const isProtected = (hexId: HexId) =>
       Object.values(clientState.board.vertices).some(
         (v) => v.hexIds.includes(hexId) && v.building && (visibleVPById.get(v.building.playerId) ?? 0) <= 2,
       )
-    const candidateHexIds = Object.keys(clientState.board.tiles).filter((hexId) => hexId !== clientState.board.robberHexId)
-    const unprotectedHexIds = candidateHexIds.filter((hexId) => !isProtected(hexId))
-    const usable = clientState.friendlyRobberEnabled && unprotectedHexIds.length > 0 ? unprotectedHexIds : candidateHexIds
-    for (const hexId of usable) selectableHexIds.add(hexId)
+    const landHexIds = Object.values(clientState.board.tiles)
+      .filter((t) => t.terrain !== 'SEA' && t.id !== clientState.board.robberHexId)
+      .map((t) => t.id)
+    const unprotectedHexIds = landHexIds.filter((hexId) => !isProtected(hexId))
+    const usableLand = clientState.friendlyRobberEnabled && unprotectedHexIds.length > 0 ? unprotectedHexIds : landHexIds
+    for (const hexId of usableLand) selectableHexIds.add(hexId)
+
+    // The pirate (Seafarers): clicking any other sea tile moves it there instead of the robber --
+    // which piece moves falls out of which tile was clicked, no separate mode toggle needed.
+    for (const tile of Object.values(clientState.board.tiles)) {
+      if (tile.terrain === 'SEA' && tile.id !== clientState.board.pirateHexId) selectableHexIds.add(tile.id)
+    }
   } else if (roadBuildingDevCardId) {
     if (!roadBuildingFirstEdge) {
       for (const edge of Object.values(clientState.board.edges)) {
@@ -233,12 +255,18 @@ export function GamePage() {
         if (canPlaceSettlement(clientState.board, vertex.id, playerId, false)) selectableVertexIds.add(vertex.id)
       }
     }
-  } else if ((isMyTurn && clientState.turn?.hasRolled && !specialBuild && !pendingRobber) || isMySpecialBuildTurn) {
+  } else if (
+    ((isMyTurn && clientState.turn?.hasRolled && !specialBuild && !pendingRobber && !pendingGoldPick) || isMySpecialBuildTurn)
+  ) {
     // Only highlight a mode's targets when the resources for it are actually there -- otherwise
     // a spot can look clickable (position is legal) while the server still rejects it for cost.
     if (buildMode === 'ROAD' && canBuildRoad) {
       for (const edge of Object.values(clientState.board.edges)) {
         if (canPlaceRoad(clientState.board, edge.id, playerId)) selectableEdgeIds.add(edge.id)
+      }
+    } else if (buildMode === 'SHIP' && canBuildShip) {
+      for (const edge of Object.values(clientState.board.edges)) {
+        if (canPlaceShip(clientState.board, edge.id, playerId)) selectableEdgeIds.add(edge.id)
       }
     } else if (buildMode === 'SETTLEMENT' && canBuildSettlement) {
       for (const vertex of Object.values(clientState.board.vertices)) {
@@ -300,14 +328,26 @@ export function GamePage() {
         if (!ack.ok) setLastError(ack.error)
         else setBuildMode('NONE')
       })
+    } else if (buildMode === 'SHIP') {
+      socket.emit('build_ship', { edgeId }, (ack) => {
+        if (!ack.ok) setLastError(ack.error)
+        else setBuildMode('NONE')
+      })
     }
   }
 
   function handleHexClick(hexId: HexId) {
     if (!isMoveRobberStage) return
-    socket.emit('move_robber', { hexId }, (ack) => {
-      if (!ack.ok) setLastError(ack.error)
-    })
+    // Which piece moves falls out of which tile was clicked (land -> robber, sea -> pirate).
+    if (state.board.tiles[hexId]?.terrain === 'SEA') {
+      socket.emit('move_pirate', { hexId }, (ack) => {
+        if (!ack.ok) setLastError(ack.error)
+      })
+    } else {
+      socket.emit('move_robber', { hexId }, (ack) => {
+        if (!ack.ok) setLastError(ack.error)
+      })
+    }
   }
 
   // Entering a build mode means the next click has to land on the board, which the mobile
@@ -474,9 +514,15 @@ export function GamePage() {
             {pendingRobber.stage === 'DISCARD' &&
               (myDiscardRequired > 0 ? <p>カードを{myDiscardRequired}枚捨ててください</p> : <p>他のプレイヤーの捨て札を待っています…</p>)}
             {pendingRobber.stage === 'MOVE_ROBBER' &&
-              (isMoveRobberStage ? <p>盗賊を移動するタイルを選んでください</p> : <p>盗賊の移動を待っています…</p>)}
+              (isMoveRobberStage ? <p>盗賊(陸)か海賊船(海)を移動するタイルを選んでください</p> : <p>盗賊・海賊船の移動を待っています…</p>)}
             {pendingRobber.stage === 'SELECT_TARGET' &&
               (isSelectTargetStage ? <p>誰から奪うか選んでください</p> : <p>盗賊の対象選択を待っています…</p>)}
+          </section>
+        )}
+
+        {state.phase === 'PLAYING' && pendingGoldPick && (
+          <section className="action-bar panel-section">
+            {myGoldPickOwed > 0 ? <p>金鉱から{myGoldPickOwed}枚選んでください</p> : <p>他のプレイヤーの金鉱ピックを待っています…</p>}
           </section>
         )}
       </>
@@ -493,6 +539,11 @@ export function GamePage() {
         <button className={buildMode === 'ROAD' ? 'active' : ''} disabled={!canBuildRoad} onClick={() => selectBuildMode('ROAD')}>
           道路を建設
         </button>
+        {state.seafarersEnabled && (
+          <button className={buildMode === 'SHIP' ? 'active' : ''} disabled={!canBuildShip} onClick={() => selectBuildMode('SHIP')}>
+            船を建設
+          </button>
+        )}
         <button
           className={buildMode === 'SETTLEMENT' ? 'active' : ''}
           disabled={!canBuildSettlement}
@@ -508,7 +559,7 @@ export function GamePage() {
   }
 
   function renderActionBarSection() {
-    if (state.phase !== 'PLAYING' || pendingRobber) return null
+    if (state.phase !== 'PLAYING' || pendingRobber || pendingGoldPick) return null
 
     if (specialBuild) {
       const activeName = [me, ...state.players].find((p) => p.id === specialBuild.activePlayerId)?.name ?? '相手'
@@ -543,7 +594,7 @@ export function GamePage() {
   }
 
   function renderDevCardSection() {
-    if (state.phase !== 'PLAYING' || pendingRobber) return null
+    if (state.phase !== 'PLAYING' || pendingRobber || pendingGoldPick) return null
     return (
       <DevCardPanel
         roadBuildingDevCardId={roadBuildingDevCardId}
@@ -598,6 +649,7 @@ export function GamePage() {
         ))}
       </div>
       {myDiscardRequired > 0 && <DiscardModal required={myDiscardRequired} />}
+      {myGoldPickOwed > 0 && <GoldPickModal owed={myGoldPickOwed} />}
       {isSelectTargetStage && pendingRobber?.eligibleStealTargets && (
         <StealTargetModal eligiblePlayerIds={pendingRobber.eligibleStealTargets} />
       )}

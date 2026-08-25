@@ -7,7 +7,8 @@ import forestImg from '../../assets/terrain/forest.jpg'
 import desertImg from '../../assets/terrain/desert.jpg'
 import pastureImg from '../../assets/terrain/pasture.jpg'
 
-const TERRAIN_IMAGES: Record<TerrainType, string> = {
+// SEA/GOLD have no photo asset -- they're rendered as flat fills instead (see SEA_FILL/GOLD_FILL below).
+const TERRAIN_IMAGES: Partial<Record<TerrainType, string>> = {
   HILLS: hillsImg,
   PASTURE: pastureImg,
   MOUNTAINS: mountainsImg,
@@ -23,7 +24,13 @@ const TERRAIN_LABELS: Record<TerrainType, string> = {
   FOREST: '木',
   FIELDS: '小麦',
   DESERT: '砂漠',
+  SEA: '',
+  GOLD: '金鉱',
 }
+
+/** Same blue as the board's backdrop rect, so a sea tile blends seamlessly into the open water around it. */
+const SEA_FILL = '#4a90d9'
+const GOLD_FILL = '#e8c547'
 
 /** Standard probability pips: how many ways (out of 36) a 2d6 roll can produce this number. */
 const PROBABILITY_DOTS: Record<number, number> = {
@@ -99,20 +106,22 @@ export function HexBoard({
       <rect x={bounds.minX} y={bounds.minY} width={width} height={height} fill="#4a90d9" />
 
       <defs>
-        {Object.values(board.tiles).map((tile) => {
-          const corners = hexCorners[tile.id]
-          const xs = corners.map((c) => c.x)
-          const ys = corners.map((c) => c.y)
-          const minX = Math.min(...xs)
-          const minY = Math.min(...ys)
-          const w = Math.max(...xs) - minX
-          const h = Math.max(...ys) - minY
-          return (
-            <pattern key={tile.id} id={`terrain-${tile.id}`} patternUnits="userSpaceOnUse" x={minX} y={minY} width={w} height={h}>
-              <image href={TERRAIN_IMAGES[tile.terrain]} x={0} y={0} width={w} height={h} preserveAspectRatio="xMidYMid slice" />
-            </pattern>
-          )
-        })}
+        {Object.values(board.tiles)
+          .filter((tile) => TERRAIN_IMAGES[tile.terrain])
+          .map((tile) => {
+            const corners = hexCorners[tile.id]
+            const xs = corners.map((c) => c.x)
+            const ys = corners.map((c) => c.y)
+            const minX = Math.min(...xs)
+            const minY = Math.min(...ys)
+            const w = Math.max(...xs) - minX
+            const h = Math.max(...ys) - minY
+            return (
+              <pattern key={tile.id} id={`terrain-${tile.id}`} patternUnits="userSpaceOnUse" x={minX} y={minY} width={w} height={h}>
+                <image href={TERRAIN_IMAGES[tile.terrain]} x={0} y={0} width={w} height={h} preserveAspectRatio="xMidYMid slice" />
+              </pattern>
+            )
+          })}
       </defs>
 
       {Object.values(board.tiles).map((tile) => {
@@ -120,13 +129,16 @@ export function HexBoard({
         const points = corners.map((c) => `${c.x},${c.y}`).join(' ')
         const center = hexCenters[tile.id]
         const isRobber = tile.id === board.robberHexId
+        const isPirate = tile.id === board.pirateHexId
         const selectable = selectableHexIds?.has(tile.id)
         const isRolledNumber = highlightedNumber != null && tile.numberToken === highlightedNumber
+        const hasPhoto = Boolean(TERRAIN_IMAGES[tile.terrain])
+        const flatFill = tile.terrain === 'GOLD' ? GOLD_FILL : SEA_FILL
         return (
           <g key={tile.id}>
             <polygon
               points={points}
-              fill={`url(#terrain-${tile.id})`}
+              fill={hasPhoto ? `url(#terrain-${tile.id})` : flatFill}
               stroke={isRolledNumber ? '#ffd600' : '#2b2b2b'}
               strokeWidth={isRolledNumber ? 4 : 1.5}
               onClick={selectable ? () => onHexClick?.(tile.id) : undefined}
@@ -134,7 +146,7 @@ export function HexBoard({
               opacity={selectable ? 0.85 : 1}
             />
             {/* lighten the photo so player pieces/roads stay readable on top of it */}
-            <polygon points={points} fill="#ffffff" opacity={0.38} style={{ pointerEvents: 'none' }} />
+            {hasPhoto && <polygon points={points} fill="#ffffff" opacity={0.38} style={{ pointerEvents: 'none' }} />}
             {/* darken the whole tile to mark the robber's tile, instead of a token that would sit on
                 top of the number and hide it -- the terrain name and number stay fully readable */}
             {isRobber && <polygon points={points} fill="#000000" opacity={0.4} style={{ pointerEvents: 'none' }} />}
@@ -146,20 +158,31 @@ export function HexBoard({
                 <line x1={corners[5].x} y1={corners[5].y} x2={corners[2].x} y2={corners[2].y} stroke="#e53935" strokeWidth={5} strokeLinecap="round" />
               </g>
             )}
-            <text
-              x={center.x}
-              y={center.y - 22}
-              textAnchor="middle"
-              fontSize={11}
-              fontWeight="bold"
-              fill="#1b1b1b"
-              stroke="#fff"
-              strokeWidth={3}
-              paintOrder="stroke"
-              style={{ pointerEvents: 'none' }}
-            >
-              {TERRAIN_LABELS[tile.terrain]}
-            </text>
+            {/* the pirate ship marker uses a skull instead of the robber's X, so the two are never confused */}
+            {isPirate && (
+              <g style={{ pointerEvents: 'none' }}>
+                <polygon points={points} fill="#000000" opacity={0.45} />
+                <text x={center.x} y={center.y + 8} textAnchor="middle" fontSize={26}>
+                  ☠️
+                </text>
+              </g>
+            )}
+            {tile.terrain !== 'SEA' && (
+              <text
+                x={center.x}
+                y={center.y - 22}
+                textAnchor="middle"
+                fontSize={11}
+                fontWeight="bold"
+                fill="#1b1b1b"
+                stroke="#fff"
+                strokeWidth={3}
+                paintOrder="stroke"
+                style={{ pointerEvents: 'none' }}
+              >
+                {TERRAIN_LABELS[tile.terrain]}
+              </text>
+            )}
             {tile.numberToken && (
               // pointer-events: none so a click aimed at a tile's center (where this badge sits)
               // still reaches the tile polygon underneath instead of being silently swallowed
@@ -244,10 +267,11 @@ export function HexBoard({
         const pB = vertexPoints[vB]
         if (!pA || !pB) return null
         const selectable = selectableEdgeIds?.has(edge.id)
-        const color = edge.road ? playerColorById[edge.road.playerId] ?? '#000' : undefined
+        const piece = edge.road ?? edge.ship
+        const color = piece ? playerColorById[piece.playerId] ?? '#000' : undefined
         return (
           <g key={edge.id}>
-            {edge.road && (
+            {piece && (
               <line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#ffffff" strokeWidth={10} strokeLinecap="round" />
             )}
             <line
@@ -255,9 +279,10 @@ export function HexBoard({
               y1={pA.y}
               x2={pB.x}
               y2={pB.y}
-              stroke={edge.road ? color : selectable ? '#ffffffaa' : 'transparent'}
-              strokeWidth={edge.road ? 6 : 20}
+              stroke={piece ? color : selectable ? '#ffffffaa' : 'transparent'}
+              strokeWidth={piece ? 6 : 20}
               strokeLinecap="round"
+              strokeDasharray={edge.ship ? '4,4' : undefined}
               onClick={selectable ? () => onEdgeClick?.(edge.id) : undefined}
               style={{ cursor: selectable ? 'pointer' : 'default' }}
             />

@@ -49,7 +49,7 @@ export interface Player {
   sessionToken: string;
   resources: ResourceHand;
   devCards: DevCard[];
-  buildingStock: { settlements: number; cities: number; roads: number };
+  buildingStock: { settlements: number; cities: number; roads: number; ships: number };
   knightsPlayed: number;
   stats: PlayerStats;
   isBot: boolean;
@@ -106,6 +106,8 @@ export interface TurnState {
   pendingRobber: PendingRobberState | null;
   pendingTrades: TradeOffer[];
   specialBuild: SpecialBuildState | null;
+  /** Gold hex (Seafarers): playerId -> number of free resource picks still owed after this roll. */
+  pendingGoldPick: Record<string, number> | null;
 }
 
 export type GamePhase = 'LOBBY' | 'SETUP' | 'PLAYING' | 'GAME_OVER';
@@ -129,6 +131,7 @@ export interface GameState {
   boardMode: BoardMode;
   specialBuildingPhaseEnabled: boolean;
   friendlyRobberEnabled: boolean;
+  seafarersEnabled: boolean;
   board: Board;
   bank: Bank;
   players: Player[];
@@ -185,6 +188,7 @@ export interface ClientGameState {
   hostPlayerId: string;
   phase: GamePhase;
   friendlyRobberEnabled: boolean;
+  seafarersEnabled: boolean;
   board: Board;
   bank: ClientBank;
   players: PublicPlayerView[];

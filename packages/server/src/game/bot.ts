@@ -1,5 +1,15 @@
 import type { GameState, Board, VertexId, EdgeId, ResourceHand, HexId } from '@catan-online/shared';
-import { canPlaceSettlement, canPlaceRoad, canUpgradeToCity, canAfford, ROAD_COST, SETTLEMENT_COST, CITY_COST } from '@catan-online/shared';
+import {
+  canPlaceSettlement,
+  canPlaceRoad,
+  canPlaceShip,
+  canUpgradeToCity,
+  canAfford,
+  ROAD_COST,
+  SETTLEMENT_COST,
+  CITY_COST,
+  SHIP_COST,
+} from '@catan-online/shared';
 import { dispatch } from './dispatch.js';
 import { isProtectedByFriendlyRobber } from './scoring.js';
 import { rollTwoDice, pickRandomResourceFromHand } from '../utils/rng.js';
@@ -42,6 +52,11 @@ function chooseAnyRoadEdge(board: Board, botId: string): EdgeId | null {
   return pickRandom(candidates.map((e) => e.id));
 }
 
+function chooseAnyShipEdge(board: Board, botId: string): EdgeId | null {
+  const candidates = Object.values(board.edges).filter((e) => canPlaceShip(board, e.id, botId));
+  return pickRandom(candidates.map((e) => e.id));
+}
+
 function chooseCityVertex(board: Board, botId: string): VertexId | null {
   const candidates = Object.values(board.vertices).filter((v) => canUpgradeToCity(board, v.id, botId));
   if (candidates.length === 0) return null;
@@ -68,7 +83,7 @@ function chooseDiscard(resources: ResourceHand, count: number): Partial<Resource
  * retries proposing a move that's just going to be rejected. */
 function chooseRobberHex(state: GameState, botId: string): HexId {
   const board = state.board;
-  const tiles = Object.values(board.tiles).filter((t) => t.id !== board.robberHexId);
+  const tiles = Object.values(board.tiles).filter((t) => t.id !== board.robberHexId && t.terrain !== 'SEA');
   const allowed = state.friendlyRobberEnabled ? tiles.filter((t) => !isProtectedByFriendlyRobber(state, t.id)) : tiles;
   const usable = allowed.length > 0 ? allowed : tiles; // escape hatch: every tile is protected
   const withOpponentBuilding = usable.filter((t) =>
@@ -76,6 +91,21 @@ function chooseRobberHex(state: GameState, botId: string): HexId {
   );
   const pool = withOpponentBuilding.length > 0 ? withOpponentBuilding : usable;
   return pickRandom(pool)!.id;
+}
+
+/** Picks whichever resources the bot currently holds least of, skipping any the bank has run out of. */
+function chooseGoldPick(state: GameState, botId: string, count: number): Partial<ResourceHand> {
+  const bot = state.players.find((p) => p.id === botId)!;
+  const resourceTypes: (keyof ResourceHand)[] = ['BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE'];
+  const picks: Partial<ResourceHand> = {};
+  for (let i = 0; i < count; i++) {
+    const affordable = resourceTypes.filter((r) => (picks[r] ?? 0) < state.bank.resources[r]);
+    if (affordable.length === 0) break;
+    affordable.sort((a, b) => bot.resources[a] + (picks[a] ?? 0) - (bot.resources[b] + (picks[b] ?? 0)));
+    const choice = affordable[0];
+    picks[choice] = (picks[choice] ?? 0) + 1;
+  }
+  return picks;
 }
 
 const noop = () => {};
@@ -106,6 +136,14 @@ function attemptBotBuild(io: AppServer, room: Room, state: GameState, botId: str
     const edgeId = chooseAnyRoadEdge(state.board, botId);
     if (edgeId) {
       const succeeded = dispatch(io, room, { type: 'BUILD_ROAD', playerId: botId, edgeId }, noop);
+      if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: botId });
+      return true;
+    }
+  }
+  if (canAfford(bot.resources, SHIP_COST) && bot.buildingStock.ships > 0) {
+    const edgeId = chooseAnyShipEdge(state.board, botId);
+    if (edgeId) {
+      const succeeded = dispatch(io, room, { type: 'BUILD_SHIP', playerId: botId, edgeId }, noop);
       if (succeeded) io.to(room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: botId });
       return true;
     }
@@ -150,6 +188,18 @@ function runOneBotAction(io: AppServer, room: Room): boolean {
     if (attemptBotBuild(io, room, state, sbBot.id)) return true;
     dispatch(io, room, { type: 'PASS_SPECIAL_BUILD', playerId: sbBot.id }, noop);
     return true;
+  }
+
+  if (turn.pendingGoldPick) {
+    for (const p of state.players) {
+      if (!p.isBot) continue;
+      const owed = turn.pendingGoldPick[p.id] ?? 0;
+      if (owed > 0) {
+        dispatch(io, room, { type: 'SELECT_GOLD_RESOURCES', playerId: p.id, resources: chooseGoldPick(state, p.id, owed) }, noop);
+        return true;
+      }
+    }
+    return false;
   }
 
   const pendingRobber = turn.pendingRobber;

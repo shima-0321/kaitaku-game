@@ -43,6 +43,32 @@ export function calculateResourceGains(board: Board, diceTotal: number): Resourc
   return result;
 }
 
+export interface GoldPickEntitlement {
+  playerId: string;
+  count: number;
+}
+
+/** Gold hex production (Seafarers): a settlement owes 1 free pick, a city 2, whenever a gold
+ * tile's number comes up. Unlike calculateResourceGains, this doesn't decide *which* resource --
+ * the player chooses that afterward via SELECT_GOLD_RESOURCES. */
+export function calculateGoldPicksOwed(board: Board, diceTotal: number): GoldPickEntitlement[] {
+  const owed = new Map<string, number>();
+
+  for (const tile of Object.values(board.tiles)) {
+    if (tile.terrain !== 'GOLD' || tile.numberToken !== diceTotal) continue;
+    if (tile.id === board.robberHexId) continue;
+
+    for (const vertexId of vertexIdsForTile(board, tile.id)) {
+      const building = board.vertices[vertexId]?.building;
+      if (!building) continue;
+      const amount = building.type === 'CITY' ? 2 : 1;
+      owed.set(building.playerId, (owed.get(building.playerId) ?? 0) + amount);
+    }
+  }
+
+  return Array.from(owed, ([playerId, count]) => ({ playerId, count }));
+}
+
 /**
  * Bank-scarcity rule: if the bank can't cover everyone entitled to a resource,
  * nobody gets it -- unless exactly one player was entitled, in which case

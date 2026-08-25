@@ -95,6 +95,12 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
     })
   }
 
+  function handleSetSeafarers(enabled: boolean) {
+    socket.emit('set_seafarers', { enabled }, (ack) => {
+      if (!ack.ok) setLastError(ack.error)
+    })
+  }
+
   return (
     <div className="page lobby-page">
       <h1>待機室</h1>
@@ -151,6 +157,8 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
       />
 
       <BooleanRulePicker label="フレンドリー・ロバー" value={roomInfo.friendlyRobberEnabled} editable={isHost} onChange={handleSetFriendlyRobber} />
+
+      <BooleanRulePicker label="航海者版" value={roomInfo.seafarersEnabled} editable={isHost} onChange={handleSetSeafarers} />
 
       {lastError && <p className="error-text">{lastError}</p>}
 

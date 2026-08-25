@@ -44,6 +44,7 @@ export function redactStateFor(state: GameState, viewerPlayerId: string): Client
     hostPlayerId: state.hostPlayerId,
     phase: state.phase,
     friendlyRobberEnabled: state.friendlyRobberEnabled,
+    seafarersEnabled: state.seafarersEnabled,
     board: state.board,
     bank: {
       resourceCounts: state.bank.resources,

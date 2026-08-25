@@ -14,8 +14,11 @@ export type GameAction =
   | { type: 'ROLL_DICE'; playerId: string; dice: [number, number] }
   | { type: 'SELECT_DISCARD'; playerId: string; resources: Partial<ResourceHand> }
   | { type: 'MOVE_ROBBER'; playerId: string; hexId: string }
+  | { type: 'MOVE_PIRATE'; playerId: string; hexId: string }
   | { type: 'STEAL_FROM'; playerId: string; targetPlayerId: string; stolenResource: ResourceType | null }
   | { type: 'BUILD_ROAD'; playerId: string; edgeId: string }
+  | { type: 'BUILD_SHIP'; playerId: string; edgeId: string }
+  | { type: 'SELECT_GOLD_RESOURCES'; playerId: string; resources: Partial<ResourceHand> }
   | { type: 'BUILD_SETTLEMENT'; playerId: string; vertexId: string }
   | { type: 'BUILD_CITY'; playerId: string; vertexId: string }
   | { type: 'BUY_DEV_CARD'; playerId: string }

@@ -2,12 +2,14 @@ import type { GameState, ResourceHand, Board } from '@catan-online/shared';
 import {
   canPlaceSettlement,
   canPlaceRoad,
+  canPlaceShip,
   canUpgradeToCity,
   canAfford,
   ROAD_COST,
   SETTLEMENT_COST,
   CITY_COST,
   DEV_CARD_COST,
+  SHIP_COST,
   calculateTradeRatios,
   validateBankTradeAmounts,
   totalResources,
@@ -34,10 +36,16 @@ export function validateAction(state: GameState, action: GameAction): Validation
       return validateSelectDiscard(state, action.playerId, action.resources);
     case 'MOVE_ROBBER':
       return validateMoveRobber(state, action.playerId, action.hexId);
+    case 'MOVE_PIRATE':
+      return validateMovePirate(state, action.playerId, action.hexId);
     case 'STEAL_FROM':
       return validateStealFrom(state, action.playerId, action.targetPlayerId);
     case 'BUILD_ROAD':
       return validateBuildRoad(state, action.playerId, action.edgeId);
+    case 'BUILD_SHIP':
+      return validateBuildShip(state, action.playerId, action.edgeId);
+    case 'SELECT_GOLD_RESOURCES':
+      return validateSelectGoldResources(state, action.playerId, action.resources);
     case 'BUILD_SETTLEMENT':
       return validateBuildSettlement(state, action.playerId, action.vertexId);
     case 'BUILD_CITY':
@@ -148,6 +156,7 @@ function validateMoveRobber(state: GameState, playerId: string, hexId: string): 
   if (state.turn.currentPlayerId !== playerId) return invalid('only the current player moves the robber');
   if (!state.board.tiles[hexId]) return invalid('unknown tile');
   if (hexId === state.board.robberHexId) return invalid('the robber must move to a different tile');
+  if (state.board.tiles[hexId].terrain === 'SEA') return invalid('the robber cannot move to a sea tile -- move the pirate instead');
 
   if (state.friendlyRobberEnabled && isProtectedByFriendlyRobber(state, hexId)) {
     // ...unless literally every other tile is also protected, in which case the restriction would
@@ -158,6 +167,20 @@ function validateMoveRobber(state: GameState, playerId: string, hexId: string): 
     if (anyUnprotectedTileExists) return invalid('the friendly robber cannot target a player with only 2 victory points');
   }
 
+  return VALID;
+}
+
+/** The pirate is the sea-going equivalent of the robber (Seafarers): same trigger, same
+ * DISCARD -> move -> SELECT_TARGET flow, just choosing this action instead of MOVE_ROBBER
+ * targets a ship instead of a land building. */
+function validateMovePirate(state: GameState, playerId: string, hexId: string): ValidationResult {
+  if (state.phase !== 'PLAYING' || !state.turn?.pendingRobber) return invalid('no pirate move is pending');
+  if (state.turn.pendingRobber.stage !== 'MOVE_ROBBER') return invalid('not in the move-robber stage');
+  if (state.turn.currentPlayerId !== playerId) return invalid('only the current player moves the pirate');
+  const tile = state.board.tiles[hexId];
+  if (!tile) return invalid('unknown tile');
+  if (tile.terrain !== 'SEA') return invalid('the pirate can only move to a sea tile');
+  if (hexId === state.board.pirateHexId) return invalid('the pirate must move to a different tile');
   return VALID;
 }
 
@@ -178,6 +201,7 @@ function requireActiveBuildPhase(state: GameState, playerId: string): Validation
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
+  if (state.turn.pendingGoldPick) return invalid('resolve the gold hex pick first');
   return null;
 }
 
@@ -192,6 +216,7 @@ function requireActiveBuildOrSpecialBuild(state: GameState, playerId: string): V
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
+  if (state.turn.pendingGoldPick) return invalid('resolve the gold hex pick first');
   return null;
 }
 
@@ -204,6 +229,18 @@ function validateBuildRoad(state: GameState, playerId: string, edgeId: string): 
   if (!canAfford(player.resources, ROAD_COST)) return invalid('not enough resources for a road');
   if (!state.board.edges[edgeId]) return invalid('unknown edge');
   if (!canPlaceRoad(state.board, edgeId, playerId)) return invalid('illegal road position');
+  return VALID;
+}
+
+function validateBuildShip(state: GameState, playerId: string, edgeId: string): ValidationResult {
+  const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
+  if (phaseErr) return phaseErr;
+  const player = findPlayer(state, playerId);
+  if (!player) return invalid('unknown player');
+  if (player.buildingStock.ships <= 0) return invalid('no ships left in stock');
+  if (!canAfford(player.resources, SHIP_COST)) return invalid('not enough resources for a ship');
+  if (!state.board.edges[edgeId]) return invalid('unknown edge');
+  if (!canPlaceShip(state.board, edgeId, playerId)) return invalid('illegal ship position');
   return VALID;
 }
 
@@ -275,6 +312,7 @@ function validatePlayDevCard(
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
+  if (state.turn.pendingGoldPick) return invalid('resolve the gold hex pick first');
   if (state.turn.devCardPlayedThisTurn) return invalid('only one development card may be played per turn');
 
   const player = findPlayer(state, playerId);
@@ -321,6 +359,19 @@ function validateEndTurn(state: GameState, playerId: string): ValidationResult {
   if (state.turn.currentPlayerId !== playerId) return invalid('not your turn');
   if (!state.turn.hasRolled) return invalid('roll the dice first');
   if (state.turn.pendingRobber) return invalid('resolve the robber first');
+  if (state.turn.pendingGoldPick) return invalid('resolve the gold hex pick first');
+  return VALID;
+}
+
+function validateSelectGoldResources(state: GameState, playerId: string, resources: Partial<ResourceHand>): ValidationResult {
+  if (state.phase !== 'PLAYING' || !state.turn?.pendingGoldPick) return invalid('no gold pick is pending');
+  const owed = state.turn.pendingGoldPick[playerId] ?? 0;
+  if (owed <= 0) return invalid('you have no gold pick owed');
+  if (totalResources(resources as ResourceHand) !== owed) return invalid(`you must pick exactly ${owed} resource(s)`);
+  for (const key of Object.keys(resources) as (keyof ResourceHand)[]) {
+    const amount = resources[key] ?? 0;
+    if (amount > state.bank.resources[key]) return invalid('the bank does not have enough of that resource');
+  }
   return VALID;
 }
 

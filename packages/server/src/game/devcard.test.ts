@@ -14,7 +14,7 @@ function makeTestPlayer(id: string, name: string, color: PlayerColor): Player {
     sessionToken: `token-${id}`,
     resources: { BRICK: 0, LUMBER: 0, WOOL: 0, GRAIN: 0, ORE: 0 },
     devCards: [],
-    buildingStock: { settlements: 5, cities: 4, roads: 15 },
+    buildingStock: { settlements: 5, cities: 4, roads: 15, ships: 15 },
     knightsPlayed: 0,
     stats: createEmptyPlayerStats(),
     isBot: false,
@@ -43,6 +43,7 @@ function makePlayingState(devCardDeck: DevCard[] = []): GameState {
       pendingRobber: null,
       pendingTrades: [],
       specialBuild: null,
+      pendingGoldPick: null,
     },
   };
 }

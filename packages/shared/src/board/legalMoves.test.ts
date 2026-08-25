@@ -3,6 +3,7 @@ import { generateBoard } from './generateBoard.js';
 import {
   canPlaceSettlement,
   canPlaceRoad,
+  canPlaceShip,
   calculateLongestRoad,
   determineLongestRoadHolder,
   determineLargestArmyHolder,
@@ -11,6 +12,18 @@ import type { Board } from '../types/board.js';
 
 function freshBoard(): Board {
   return generateBoard({ rng: () => 0.42 });
+}
+
+// deterministic PRNG for reproducible tests
+function mulberry32(seed: number) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 describe('legalMoves', () => {
@@ -122,6 +135,59 @@ describe('legalMoves', () => {
     expect(achieved).toBe(6);
     expect(cutAchieved).toBeLessThan(achieved);
     expect(cutAchieved).toBeLessThanOrEqual(3); // neither half of a 6-edge trail split at its midpoint can exceed 3
+  });
+
+  it('canPlaceShip requires a sea-touching edge, and canPlaceRoad requires a land-touching edge', () => {
+    const board = generateBoard({ rng: mulberry32(3), seafarers: true });
+    const seaOnlyEdge = Object.values(board.edges).find(
+      (e) => e.hexIds.length > 0 && e.hexIds.every((id) => board.tiles[id].terrain === 'SEA'),
+    )!;
+    const landOnlyEdge = Object.values(board.edges).find(
+      (e) => e.hexIds.length > 0 && e.hexIds.every((id) => board.tiles[id].terrain !== 'SEA'),
+    )!;
+    expect(seaOnlyEdge).toBeTruthy();
+    expect(landOnlyEdge).toBeTruthy();
+
+    const [seaVertex] = seaOnlyEdge.vertexIds;
+    board.vertices[seaVertex] = { ...board.vertices[seaVertex], building: { playerId: 'p1', type: 'SETTLEMENT' } };
+    expect(canPlaceShip(board, seaOnlyEdge.id, 'p1')).toBe(true);
+    expect(canPlaceRoad(board, seaOnlyEdge.id, 'p1')).toBe(false);
+
+    const [landVertex] = landOnlyEdge.vertexIds;
+    board.vertices[landVertex] = { ...board.vertices[landVertex], building: { playerId: 'p1', type: 'SETTLEMENT' } };
+    expect(canPlaceRoad(board, landOnlyEdge.id, 'p1')).toBe(true);
+    expect(canPlaceShip(board, landOnlyEdge.id, 'p1')).toBe(false);
+  });
+
+  it('counts a trail that mixes roads and ships as one continuous route', () => {
+    const board = freshBoard();
+    let achieved = -1;
+
+    for (const startVertexId of Object.keys(board.vertices)) {
+      for (const eId of Object.keys(board.edges)) board.edges[eId] = { ...board.edges[eId], road: null, ship: null };
+
+      let currentVertexId = startVertexId;
+      const visitedEdges = new Set<string>();
+      for (let i = 0; i < 5; i++) {
+        const vertex = board.vertices[currentVertexId];
+        const nextEdgeId = vertex.edgeIds.find((eId) => !visitedEdges.has(eId));
+        if (!nextEdgeId) break;
+        visitedEdges.add(nextEdgeId);
+        // alternate road/ship along the trail -- a mixed route should still count as one continuous chain
+        board.edges[nextEdgeId] =
+          i % 2 === 0
+            ? { ...board.edges[nextEdgeId], road: { playerId: 'p1' } }
+            : { ...board.edges[nextEdgeId], ship: { playerId: 'p1' } };
+        const edge = board.edges[nextEdgeId];
+        currentVertexId = edge.vertexIds[0] === currentVertexId ? edge.vertexIds[1] : edge.vertexIds[0];
+      }
+      if (visitedEdges.size === 5) {
+        achieved = calculateLongestRoad(board, 'p1');
+        break;
+      }
+    }
+
+    expect(achieved).toBe(5);
   });
 
   it('longest road holder requires at least 5 and keeps ties with the current holder', () => {

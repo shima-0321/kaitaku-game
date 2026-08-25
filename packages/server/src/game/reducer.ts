@@ -11,10 +11,12 @@ import {
   createEmptyHand,
   createEmptyPlayerStats,
   calculateResourceGains,
+  calculateGoldPicksOwed,
   applyBankScarcity,
   determineLongestRoadHolder,
   determineLargestArmyHolder,
   totalResources,
+  SHIP_COST,
 } from '@catan-online/shared';
 import type { GameAction } from './actions.js';
 import { startGame, rollTurnOrder } from './setup.js';
@@ -197,6 +199,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingRobber: null,
             pendingTrades: [],
             specialBuild: null,
+            pendingGoldPick: null,
           };
           draft.setup = null;
           addLog(draft, '初期配置が完了しました。ゲーム開始です！');
@@ -254,6 +257,14 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         for (const [gainPlayerId, items] of gainsByPlayer) {
           addLog(draft, `${playerName(draft, gainPlayerId)}が${items.join('、')}を獲得。`);
         }
+
+        const goldOwed = calculateGoldPicksOwed(draft.board, total);
+        if (goldOwed.length > 0) {
+          draft.turn!.pendingGoldPick = Object.fromEntries(goldOwed.map((g) => [g.playerId, g.count]));
+          for (const g of goldOwed) {
+            addLog(draft, `${playerName(draft, g.playerId)}が金鉱から${g.count}枚選べます。`);
+          }
+        }
       });
 
     case 'SELECT_DISCARD':
@@ -292,6 +303,26 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         }
       });
 
+    case 'MOVE_PIRATE':
+      return produce(state, (draft) => {
+        draft.board.pirateHexId = action.hexId;
+        addLog(draft, `${playerName(draft, action.playerId)}が海賊船を移動しました。`);
+
+        const targetIds = new Set<string>();
+        for (const edge of Object.values(draft.board.edges)) {
+          if (!edge.hexIds.includes(action.hexId)) continue;
+          if (edge.ship && edge.ship.playerId !== action.playerId) targetIds.add(edge.ship.playerId);
+        }
+
+        if (targetIds.size === 0) {
+          draft.turn!.pendingRobber = null;
+          addLog(draft, 'そのマスには奪える相手がいませんでした。');
+        } else {
+          draft.turn!.pendingRobber!.stage = 'SELECT_TARGET';
+          draft.turn!.pendingRobber!.eligibleStealTargets = Array.from(targetIds);
+        }
+      });
+
     case 'STEAL_FROM':
       return produce(state, (draft) => {
         if (action.stolenResource) {
@@ -305,6 +336,22 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         draft.turn!.pendingRobber = null;
       });
 
+    case 'SELECT_GOLD_RESOURCES':
+      return produce(state, (draft) => {
+        const player = draft.players.find((p) => p.id === action.playerId)!;
+        for (const key of Object.keys(action.resources) as (keyof ResourceHand)[]) {
+          const amount = action.resources[key] ?? 0;
+          player.resources[key] += amount;
+          draft.bank.resources[key] -= amount;
+          trackGain(draft, action.playerId, key, amount);
+        }
+        const pending = draft.turn!.pendingGoldPick!;
+        delete pending[action.playerId];
+        addLog(draft, `${playerName(draft, action.playerId)}が金鉱から資源を選びました。`);
+
+        if (Object.keys(pending).length === 0) draft.turn!.pendingGoldPick = null;
+      });
+
     case 'BUILD_ROAD':
       return produce(state, (draft) => {
         spend(draft, action.playerId, ROAD_COST);
@@ -315,6 +362,17 @@ export function applyAction(state: GameState, action: GameAction): GameState {
         addLog(draft, `${playerName(draft, action.playerId)}が道路を建設しました。`);
         refreshLongestRoad(draft);
         checkWinCondition(draft, action.playerId); // a new longest-road award can itself be the winning point
+      });
+
+    case 'BUILD_SHIP':
+      return produce(state, (draft) => {
+        spend(draft, action.playerId, SHIP_COST);
+        draft.board.edges[action.edgeId].ship = { playerId: action.playerId };
+        const player = draft.players.find((p) => p.id === action.playerId)!;
+        player.buildingStock.ships -= 1;
+        addLog(draft, `${playerName(draft, action.playerId)}が船を建設しました。`);
+        refreshLongestRoad(draft);
+        checkWinCondition(draft, action.playerId);
       });
 
     case 'BUILD_SETTLEMENT':
@@ -510,6 +568,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingRobber: null,
             pendingTrades: [],
             specialBuild: null,
+            pendingGoldPick: null,
           };
           checkWinCondition(draft, nextPlayerId);
         }
@@ -528,6 +587,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingRobber: null,
             pendingTrades: [],
             specialBuild: null,
+            pendingGoldPick: null,
           };
           addLog(draft, `${playerName(draft, sb.nextPlayerId)}の手番です。`);
           checkWinCondition(draft, sb.nextPlayerId);

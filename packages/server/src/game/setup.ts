@@ -23,6 +23,7 @@ export function createNewGameState(roomId: string, roomCode: string, hostPlayerI
     boardMode: 'RANDOM',
     specialBuildingPhaseEnabled: false,
     friendlyRobberEnabled: false,
+    seafarersEnabled: false,
     board: generateBoard(),
     bank: {
       resources: {
@@ -113,7 +114,7 @@ export function startGame(state: GameState, turnOrder: TurnOrderRoll[]): GameSta
     ...state,
     players: orderedPlayers,
     phase: 'SETUP',
-    board: generateBoard({ mode: state.boardMode, playerCount: orderedPlayers.length }),
+    board: generateBoard({ mode: state.boardMode, playerCount: orderedPlayers.length, seafarers: state.seafarersEnabled }),
     bank: { ...state.bank, devCardDeck: buildDevCardDeck() },
     setup: {
       order: snakeOrder,

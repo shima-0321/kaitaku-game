@@ -68,6 +68,20 @@ export function registerGameHandlers({ io, socket, roomManager }: HandlerContext
     afterHumanAction(resolved.room);
   });
 
+  socket.on('move_pirate', ({ hexId }, cb) => {
+    const resolved = resolvePlayerAction(roomManager, socket.id, cb);
+    if (!resolved) return;
+    dispatch(io, resolved.room, { type: 'MOVE_PIRATE', playerId: resolved.playerId, hexId }, cb);
+    afterHumanAction(resolved.room);
+  });
+
+  socket.on('select_gold_resources', ({ resources }, cb) => {
+    const resolved = resolvePlayerAction(roomManager, socket.id, cb);
+    if (!resolved) return;
+    dispatch(io, resolved.room, { type: 'SELECT_GOLD_RESOURCES', playerId: resolved.playerId, resources }, cb);
+    afterHumanAction(resolved.room);
+  });
+
   socket.on('steal_from', ({ targetPlayerId }, cb) => {
     const resolved = resolvePlayerAction(roomManager, socket.id, cb);
     if (!resolved) return;
@@ -92,6 +106,14 @@ export function registerGameHandlers({ io, socket, roomManager }: HandlerContext
     const resolved = resolvePlayerAction(roomManager, socket.id, cb);
     if (!resolved) return;
     const succeeded = dispatch(io, resolved.room, { type: 'BUILD_ROAD', playerId: resolved.playerId, edgeId }, cb);
+    if (succeeded) io.to(resolved.room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: resolved.playerId });
+    afterHumanAction(resolved.room);
+  });
+
+  socket.on('build_ship', ({ edgeId }, cb) => {
+    const resolved = resolvePlayerAction(roomManager, socket.id, cb);
+    if (!resolved) return;
+    const succeeded = dispatch(io, resolved.room, { type: 'BUILD_SHIP', playerId: resolved.playerId, edgeId }, cb);
     if (succeeded) io.to(resolved.room.state.roomId).emit('game_sound', { kind: 'BUILD', playerId: resolved.playerId });
     afterHumanAction(resolved.room);
   });

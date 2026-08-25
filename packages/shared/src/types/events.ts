@@ -93,6 +93,18 @@ export interface SetSpecialBuildingPhasePayload {
 export interface SetFriendlyRobberPayload {
   enabled: boolean;
 }
+export interface SetSeafarersPayload {
+  enabled: boolean;
+}
+export interface BuildShipPayload {
+  edgeId: EdgeId;
+}
+export interface MovePiratePayload {
+  hexId: HexId;
+}
+export interface SelectGoldResourcesPayload {
+  resources: Partial<ResourceHand>;
+}
 
 // ---- Client -> Server event map ----
 export interface ClientToServerEvents {
@@ -106,13 +118,17 @@ export interface ClientToServerEvents {
   set_board_mode: (payload: SetBoardModePayload, cb: (ack: Ack) => void) => void;
   set_special_building_phase: (payload: SetSpecialBuildingPhasePayload, cb: (ack: Ack) => void) => void;
   set_friendly_robber: (payload: SetFriendlyRobberPayload, cb: (ack: Ack) => void) => void;
+  set_seafarers: (payload: SetSeafarersPayload, cb: (ack: Ack) => void) => void;
   place_setup_settlement: (payload: PlaceSetupSettlementPayload, cb: (ack: Ack) => void) => void;
   place_setup_road: (payload: PlaceSetupRoadPayload, cb: (ack: Ack) => void) => void;
   roll_dice: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
   select_discard: (payload: SelectDiscardPayload, cb: (ack: Ack) => void) => void;
   move_robber: (payload: MoveRobberPayload, cb: (ack: Ack) => void) => void;
+  move_pirate: (payload: MovePiratePayload, cb: (ack: Ack) => void) => void;
   steal_from: (payload: StealFromPayload, cb: (ack: Ack) => void) => void;
   build_road: (payload: BuildRoadPayload, cb: (ack: Ack) => void) => void;
+  build_ship: (payload: BuildShipPayload, cb: (ack: Ack) => void) => void;
+  select_gold_resources: (payload: SelectGoldResourcesPayload, cb: (ack: Ack) => void) => void;
   build_settlement: (payload: BuildSettlementPayload, cb: (ack: Ack) => void) => void;
   build_city: (payload: BuildCityPayload, cb: (ack: Ack) => void) => void;
   buy_dev_card: (payload: Record<string, never>, cb: (ack: Ack) => void) => void;
@@ -140,6 +156,7 @@ export interface RoomUpdatedPayload {
   boardMode: BoardMode;
   specialBuildingPhaseEnabled: boolean;
   friendlyRobberEnabled: boolean;
+  seafarersEnabled: boolean;
   players: RoomPlayerSummary[];
 }
 export interface DiceRolledPayload {

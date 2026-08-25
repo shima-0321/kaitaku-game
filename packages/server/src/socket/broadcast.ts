@@ -28,6 +28,7 @@ export function broadcastRoomUpdated(io: AppServer, room: Room) {
     boardMode: room.state.boardMode,
     specialBuildingPhaseEnabled: room.state.specialBuildingPhaseEnabled,
     friendlyRobberEnabled: room.state.friendlyRobberEnabled,
+    seafarersEnabled: room.state.seafarersEnabled,
     players: room.state.players.map((p) => ({
       id: p.id,
       name: p.name,

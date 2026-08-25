@@ -20,6 +20,8 @@ const STANDARD_TERRAIN_COUNTS: Record<TerrainType, number> = {
   FOREST: 4,
   FIELDS: 4,
   DESERT: 1,
+  SEA: 0,
+  GOLD: 0,
 };
 
 /** Each resource terrain +2, desert +1 (11 more tiles, 19 -> 30), per the official extension. */
@@ -30,6 +32,21 @@ const EXTENDED_TERRAIN_COUNTS: Record<TerrainType, number> = {
   FOREST: 6,
   FIELDS: 6,
   DESERT: 2,
+  SEA: 0,
+  GOLD: 0,
+};
+
+/** One gold tile plus one of each other resource terrain (6 total), for the two 3-tile
+ * discovery islands on a Seafarers board. */
+const SEAFARERS_SATELLITE_TERRAIN_COUNTS: Record<TerrainType, number> = {
+  HILLS: 1,
+  PASTURE: 1,
+  MOUNTAINS: 1,
+  FOREST: 1,
+  FIELDS: 1,
+  DESERT: 0,
+  SEA: 0,
+  GOLD: 1,
 };
 
 const STANDARD_NUMBER_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
@@ -44,6 +61,30 @@ const STANDARD_PORT_COUNT = 9;
 /** Two more generic (3:1) ports for the longer coastline. */
 const EXTENDED_PORT_TYPES: PortType[] = [...STANDARD_PORT_TYPES, 'GENERIC', 'GENERIC'];
 const EXTENDED_PORT_COUNT = 11;
+
+/**
+ * Seafarers board: the standard 19-tile island, a ring of open sea, and two small 3-tile
+ * "discovery" islands (one carrying the single gold tile) out at the edge of a radius-4 footprint.
+ * Built on top of the plain radius-4 hexagon (generateStandardHexCoords(4)) rather than a bespoke
+ * shape -- only *which* of those 61 coordinates are land/sea needs deciding here.
+ */
+const SEAFARERS_FOOTPRINT_RADIUS = 4;
+const SEAFARERS_MAIN_ISLAND_RADIUS = 2;
+
+const SEAFARERS_SATELLITE_A: { q: number; r: number }[] = [
+  { q: -4, r: 4 },
+  { q: -3, r: 4 },
+  { q: -2, r: 4 },
+];
+const SEAFARERS_SATELLITE_B: { q: number; r: number }[] = [
+  { q: 4, r: -4 },
+  { q: 3, r: -4 },
+  { q: 2, r: -4 },
+];
+
+// One per non-desert satellite tile (6, including gold) -- a shorter list here would silently
+// leave one tile (possibly gold itself) with a null number and no way to ever produce.
+const SEAFARERS_SATELLITE_NUMBER_TOKENS = [4, 5, 6, 8, 9, 11];
 
 function shuffle<T>(arr: T[], rng: () => number): T[] {
   const a = [...arr];
@@ -78,6 +119,27 @@ function assignTerrainAndNumbers(
   hexCoords.forEach((hex) => numbers.set(hexKey(hex), null));
   nonDesertHexIds.forEach((id, i) => numbers.set(id, shuffledNumbers[i]));
 
+  return { terrain, numbers };
+}
+
+/** Assigns the main island (standard 19-tile shuffle) and the two 3-tile satellite islands
+ * independently, then fills every remaining coordinate in the footprint with sea. */
+function assignSeafarersTerrainAndNumbers(
+  allHexCoords: ReturnType<typeof generateStandardHexCoords>,
+  mainIslandCoords: ReturnType<typeof generateStandardHexCoords>,
+  satelliteCoords: ReturnType<typeof generateStandardHexCoords>,
+  rng: () => number,
+): { terrain: Map<HexId, TerrainType>; numbers: Map<HexId, number | null> } {
+  const mainResult = assignTerrainAndNumbers(mainIslandCoords, rng, STANDARD_TERRAIN_COUNTS, STANDARD_NUMBER_TOKENS);
+  const satelliteResult = assignTerrainAndNumbers(satelliteCoords, rng, SEAFARERS_SATELLITE_TERRAIN_COUNTS, SEAFARERS_SATELLITE_NUMBER_TOKENS);
+
+  const terrain = new Map<HexId, TerrainType>();
+  const numbers = new Map<HexId, number | null>();
+  for (const hex of allHexCoords) {
+    const id = hexKey(hex);
+    terrain.set(id, mainResult.terrain.get(id) ?? satelliteResult.terrain.get(id) ?? 'SEA');
+    numbers.set(id, mainResult.numbers.get(id) ?? satelliteResult.numbers.get(id) ?? null);
+  }
   return { terrain, numbers };
 }
 
@@ -147,12 +209,21 @@ export interface GenerateBoardOptions {
   /** How many players will be seated. 5+ switches to the 5-6 player extension's larger island;
    * anything else (including omitted) keeps the standard 19-tile board. */
   playerCount?: number;
+  /** Seafarers house rule: main island + two satellite islands + open sea, with ships/gold/pirate.
+   * Takes precedence over playerCount-based sizing (no combined variant yet). BALANCED mode isn't
+   * applied to this layout -- only RANDOM's plain shuffle. */
+  seafarers?: boolean;
 }
 
 export function generateBoard(options: GenerateBoardOptions = {}): Board {
   const rng = options.rng ?? Math.random;
   const maxAttempts = options.maxAttempts ?? 1000;
   const mode = options.mode ?? 'RANDOM';
+
+  if (options.seafarers) {
+    return generateSeafarersBoard(rng, maxAttempts);
+  }
+
   const isExtended = (options.playerCount ?? 0) >= EXTENDED_BOARD_MIN_PLAYERS;
 
   const hexCoords = isExtended ? generateExtendedHexCoords() : generateStandardHexCoords();
@@ -205,7 +276,7 @@ export function generateBoard(options: GenerateBoardOptions = {}): Board {
   }
   const edges: Board['edges'] = {};
   for (const [id, e] of topology.edges) {
-    edges[id] = { id, hexIds: e.hexIds, vertexIds: e.vertexIds, road: null };
+    edges[id] = { id, hexIds: e.hexIds, vertexIds: e.vertexIds, road: null, ship: null };
   }
 
   const ports = generatePorts(topology, rng, portTypes, portCount);
@@ -215,11 +286,80 @@ export function generateBoard(options: GenerateBoardOptions = {}): Board {
     }
   }
 
-  return { tiles, vertices, edges, ports, robberHexId: desertHexId };
+  return { tiles, vertices, edges, ports, robberHexId: desertHexId, pirateHexId: null };
 }
 
-function generatePorts(topology: Topology, rng: () => number, portTypes: PortType[], portCount: number): Port[] {
-  const coastalEdges = Array.from(topology.edges.values()).filter((e) => e.hexIds.length === 1);
+/** Builds the non-standard Seafarers board: standard main island, two 3-tile satellite islands
+ * (one carrying the single gold tile), and open sea filling the rest of a radius-4 footprint.
+ * Ports are placed on the main island's coastline only (see generatePorts' landHexIds param). */
+function generateSeafarersBoard(rng: () => number, maxAttempts: number): Board {
+  const allHexCoords = generateStandardHexCoords(SEAFARERS_FOOTPRINT_RADIUS);
+  const mainIslandCoords = generateStandardHexCoords(SEAFARERS_MAIN_ISLAND_RADIUS);
+  const satelliteCoords = [...SEAFARERS_SATELLITE_A, ...SEAFARERS_SATELLITE_B];
+
+  const topology = buildTopology(allHexCoords);
+  const realHexSet = new Set(allHexCoords.map(hexKey));
+
+  const tileAdjacency = new Map<HexId, HexId[]>();
+  for (const hex of allHexCoords) {
+    const neighbors: HexId[] = [];
+    for (const d of HEX_DIRECTIONS) {
+      const n = hexKey(hexAdd(hex, d));
+      if (realHexSet.has(n)) neighbors.push(n);
+    }
+    tileAdjacency.set(hexKey(hex), neighbors);
+  }
+
+  let result = assignSeafarersTerrainAndNumbers(allHexCoords, mainIslandCoords, satelliteCoords, rng);
+  for (let attempt = 0; attempt < maxAttempts && hasSixEightAdjacency(result.numbers, tileAdjacency); attempt++) {
+    result = assignSeafarersTerrainAndNumbers(allHexCoords, mainIslandCoords, satelliteCoords, rng);
+  }
+
+  const tiles: Record<HexId, Tile> = {};
+  let desertHexId: HexId = hexKey(mainIslandCoords[0]);
+  for (const hex of allHexCoords) {
+    const id = hexKey(hex);
+    const terrain = result.terrain.get(id)!;
+    if (terrain === 'DESERT') desertHexId = id;
+    tiles[id] = { id, coord: hex, terrain, numberToken: result.numbers.get(id) ?? null };
+  }
+
+  const vertices: Board['vertices'] = {};
+  for (const [id, v] of topology.vertices) {
+    vertices[id] = { id, hexIds: v.hexIds, edgeIds: v.edgeIds, adjacentVertexIds: v.adjacentVertexIds, building: null, portId: null };
+  }
+  const edges: Board['edges'] = {};
+  for (const [id, e] of topology.edges) {
+    edges[id] = { id, hexIds: e.hexIds, vertexIds: e.vertexIds, road: null, ship: null };
+  }
+
+  const mainIslandHexIds = new Set(mainIslandCoords.map(hexKey));
+  const ports = generatePorts(topology, rng, STANDARD_PORT_TYPES, STANDARD_PORT_COUNT, mainIslandHexIds);
+  for (const port of ports) {
+    for (const vId of port.vertexIds) {
+      if (vertices[vId]) vertices[vId].portId = port.id;
+    }
+  }
+
+  // Pirate starts out somewhere in the open sea, clear of the main island's coast.
+  const seaHexIds = allHexCoords.map(hexKey).filter((id) => result.terrain.get(id) === 'SEA');
+  const pirateHexId = seaHexIds[Math.floor(rng() * seaHexIds.length)] ?? null;
+
+  return { tiles, vertices, edges, ports, robberHexId: desertHexId, pirateHexId };
+}
+
+/** `landHexIds`, when given, restricts the coastline to edges touching one of those hexes and
+ * something outside the set (sea or off-board) -- used for the seafarers board so ports only
+ * appear on the main island (its satellite islands aren't traced, they'd form separate cycles
+ * `traceCoastalCycle` isn't built to walk). Omitted, it falls back to the plain "off-board" check
+ * that works for a single landmass with no explicit sea tiles. */
+function generatePorts(topology: Topology, rng: () => number, portTypes: PortType[], portCount: number, landHexIds?: Set<HexId>): Port[] {
+  const coastalEdges = Array.from(topology.edges.values()).filter((e) => {
+    if (!landHexIds) return e.hexIds.length === 1;
+    const touchesLand = e.hexIds.some((id) => landHexIds.has(id));
+    const touchesNonLand = e.hexIds.length === 1 || e.hexIds.some((id) => !landHexIds.has(id));
+    return touchesLand && touchesNonLand;
+  });
   const ordered = traceCoastalCycle(coastalEdges);
   const shuffledTypes = shuffle(portTypes, rng);
 

@@ -7,7 +7,7 @@ export type HexId = string;
 export type VertexId = string;
 export type EdgeId = string;
 
-export type TerrainType = 'HILLS' | 'PASTURE' | 'MOUNTAINS' | 'FOREST' | 'FIELDS' | 'DESERT';
+export type TerrainType = 'HILLS' | 'PASTURE' | 'MOUNTAINS' | 'FOREST' | 'FIELDS' | 'DESERT' | 'SEA' | 'GOLD';
 
 export type ResourceType = 'BRICK' | 'LUMBER' | 'WOOL' | 'GRAIN' | 'ORE';
 
@@ -18,6 +18,10 @@ export const TERRAIN_RESOURCE: Record<TerrainType, ResourceType | null> = {
   FOREST: 'LUMBER',
   FIELDS: 'GRAIN',
   DESERT: null,
+  SEA: null,
+  // GOLD has no fixed resource -- production grants the owning player a free pick instead,
+  // handled separately by calculateGoldPicksOwed() rather than through this map.
+  GOLD: null,
 };
 
 export const RESOURCE_LABELS_JA: Record<ResourceType, string> = {
@@ -67,6 +71,10 @@ export interface Edge {
   hexIds: HexId[];
   vertexIds: [VertexId, VertexId];
   road: RoadRef | null;
+  /** A ship (Seafarers). Mutually exclusive with `road` -- an edge holds one or the other, never
+   * both -- but kept as a separate field rather than folding into `road` so callers that only
+   * care about land roads don't need to filter by piece type. */
+  ship: RoadRef | null;
 }
 
 export interface Port {
@@ -81,4 +89,6 @@ export interface Board {
   edges: Record<EdgeId, Edge>;
   ports: Port[];
   robberHexId: HexId;
+  /** The pirate ship (Seafarers). Null on standard boards, which have no sea tiles for it to sit on. */
+  pirateHexId: HexId | null;
 }
