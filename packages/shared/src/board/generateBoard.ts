@@ -1,7 +1,19 @@
 import type { Board, Tile, TerrainType, Port, PortType, HexId, VertexId, EdgeId, BoardMode } from '../types/board.js';
-import { generateStandardHexCoords, buildTopology, hexKey, hexAdd, HEX_DIRECTIONS, type Topology } from './topology.js';
+import {
+  generateStandardHexCoords,
+  generateExtendedHexCoords,
+  buildTopology,
+  hexKey,
+  hexAdd,
+  HEX_DIRECTIONS,
+  type Topology,
+} from './topology.js';
 
-const TERRAIN_COUNTS: Record<TerrainType, number> = {
+/** Board sizing kicks in at 5+ players (the 5-6 player extension's island) -- 3-4 players still
+ * get the standard 19-tile board, unchanged. */
+const EXTENDED_BOARD_MIN_PLAYERS = 5;
+
+const STANDARD_TERRAIN_COUNTS: Record<TerrainType, number> = {
   HILLS: 3,
   PASTURE: 4,
   MOUNTAINS: 3,
@@ -10,9 +22,28 @@ const TERRAIN_COUNTS: Record<TerrainType, number> = {
   DESERT: 1,
 };
 
-const NUMBER_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+/** Each resource terrain +2, desert +1 (11 more tiles, 19 -> 30), per the official extension. */
+const EXTENDED_TERRAIN_COUNTS: Record<TerrainType, number> = {
+  HILLS: 5,
+  PASTURE: 6,
+  MOUNTAINS: 5,
+  FOREST: 6,
+  FIELDS: 6,
+  DESERT: 2,
+};
 
-const PORT_TYPES: PortType[] = ['GENERIC', 'GENERIC', 'GENERIC', 'GENERIC', 'BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE'];
+const STANDARD_NUMBER_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+
+/** One more of every number (2-12 except 7) on top of the standard set, matching the 28
+ * non-desert tiles on the extended board. */
+const EXTENDED_NUMBER_TOKENS = [...STANDARD_NUMBER_TOKENS, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12];
+
+const STANDARD_PORT_TYPES: PortType[] = ['GENERIC', 'GENERIC', 'GENERIC', 'GENERIC', 'BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE'];
+const STANDARD_PORT_COUNT = 9;
+
+/** Two more generic (3:1) ports for the longer coastline. */
+const EXTENDED_PORT_TYPES: PortType[] = [...STANDARD_PORT_TYPES, 'GENERIC', 'GENERIC'];
+const EXTENDED_PORT_COUNT = 11;
 
 function shuffle<T>(arr: T[], rng: () => number): T[] {
   const a = [...arr];
@@ -23,9 +54,9 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
-function buildTerrainList(): TerrainType[] {
+function buildTerrainList(terrainCounts: Record<TerrainType, number>): TerrainType[] {
   const list: TerrainType[] = [];
-  for (const [terrain, count] of Object.entries(TERRAIN_COUNTS) as [TerrainType, number][]) {
+  for (const [terrain, count] of Object.entries(terrainCounts) as [TerrainType, number][]) {
     for (let i = 0; i < count; i++) list.push(terrain);
   }
   return list;
@@ -34,13 +65,15 @@ function buildTerrainList(): TerrainType[] {
 function assignTerrainAndNumbers(
   hexCoords: ReturnType<typeof generateStandardHexCoords>,
   rng: () => number,
+  terrainCounts: Record<TerrainType, number>,
+  numberTokens: number[],
 ): { terrain: Map<HexId, TerrainType>; numbers: Map<HexId, number | null> } {
-  const shuffledTerrain = shuffle(buildTerrainList(), rng);
+  const shuffledTerrain = shuffle(buildTerrainList(terrainCounts), rng);
   const terrain = new Map<HexId, TerrainType>();
   hexCoords.forEach((hex, i) => terrain.set(hexKey(hex), shuffledTerrain[i]));
 
   const nonDesertHexIds = hexCoords.map(hexKey).filter((id) => terrain.get(id) !== 'DESERT');
-  const shuffledNumbers = shuffle(NUMBER_TOKENS, rng);
+  const shuffledNumbers = shuffle(numberTokens, rng);
   const numbers = new Map<HexId, number | null>();
   hexCoords.forEach((hex) => numbers.set(hexKey(hex), null));
   nonDesertHexIds.forEach((id, i) => numbers.set(id, shuffledNumbers[i]));
@@ -86,13 +119,15 @@ function pickBalancedLayout(
   hexCoords: ReturnType<typeof generateStandardHexCoords>,
   tileAdjacency: Map<HexId, HexId[]>,
   rng: () => number,
+  terrainCounts: Record<TerrainType, number>,
+  numberTokens: number[],
   initial: { terrain: Map<HexId, TerrainType>; numbers: Map<HexId, number | null> },
 ): { terrain: Map<HexId, TerrainType>; numbers: Map<HexId, number | null> } {
   let best = initial;
   let bestScore = countSameTerrainAdjacency(initial.terrain, tileAdjacency);
 
   for (let attempt = 0; attempt < BALANCED_SEARCH_ATTEMPTS && bestScore > BALANCED_TARGET_SCORE; attempt++) {
-    const candidate = assignTerrainAndNumbers(hexCoords, rng);
+    const candidate = assignTerrainAndNumbers(hexCoords, rng, terrainCounts, numberTokens);
     if (hasSixEightAdjacency(candidate.numbers, tileAdjacency)) continue;
     const score = countSameTerrainAdjacency(candidate.terrain, tileAdjacency);
     if (score < bestScore) {
@@ -109,14 +144,23 @@ export interface GenerateBoardOptions {
   /** RANDOM (default) keeps the original fully-random shuffle; BALANCED additionally searches for
    * a layout where same-terrain tiles don't cluster together. */
   mode?: BoardMode;
+  /** How many players will be seated. 5+ switches to the 5-6 player extension's larger island;
+   * anything else (including omitted) keeps the standard 19-tile board. */
+  playerCount?: number;
 }
 
 export function generateBoard(options: GenerateBoardOptions = {}): Board {
   const rng = options.rng ?? Math.random;
   const maxAttempts = options.maxAttempts ?? 1000;
   const mode = options.mode ?? 'RANDOM';
+  const isExtended = (options.playerCount ?? 0) >= EXTENDED_BOARD_MIN_PLAYERS;
 
-  const hexCoords = generateStandardHexCoords();
+  const hexCoords = isExtended ? generateExtendedHexCoords() : generateStandardHexCoords();
+  const terrainCounts = isExtended ? EXTENDED_TERRAIN_COUNTS : STANDARD_TERRAIN_COUNTS;
+  const numberTokens = isExtended ? EXTENDED_NUMBER_TOKENS : STANDARD_NUMBER_TOKENS;
+  const portTypes = isExtended ? EXTENDED_PORT_TYPES : STANDARD_PORT_TYPES;
+  const portCount = isExtended ? EXTENDED_PORT_COUNT : STANDARD_PORT_COUNT;
+
   const topology = buildTopology(hexCoords);
   const realHexSet = new Set(hexCoords.map(hexKey));
 
@@ -130,13 +174,13 @@ export function generateBoard(options: GenerateBoardOptions = {}): Board {
     tileAdjacency.set(hexKey(hex), neighbors);
   }
 
-  let result = assignTerrainAndNumbers(hexCoords, rng);
+  let result = assignTerrainAndNumbers(hexCoords, rng, terrainCounts, numberTokens);
   for (let attempt = 0; attempt < maxAttempts && hasSixEightAdjacency(result.numbers, tileAdjacency); attempt++) {
-    result = assignTerrainAndNumbers(hexCoords, rng);
+    result = assignTerrainAndNumbers(hexCoords, rng, terrainCounts, numberTokens);
   }
 
   if (mode === 'BALANCED') {
-    result = pickBalancedLayout(hexCoords, tileAdjacency, rng, result);
+    result = pickBalancedLayout(hexCoords, tileAdjacency, rng, terrainCounts, numberTokens, result);
   }
 
   const tiles: Record<HexId, Tile> = {};
@@ -164,7 +208,7 @@ export function generateBoard(options: GenerateBoardOptions = {}): Board {
     edges[id] = { id, hexIds: e.hexIds, vertexIds: e.vertexIds, road: null };
   }
 
-  const ports = generatePorts(topology, rng);
+  const ports = generatePorts(topology, rng, portTypes, portCount);
   for (const port of ports) {
     for (const vId of port.vertexIds) {
       if (vertices[vId]) vertices[vId].portId = port.id;
@@ -174,12 +218,12 @@ export function generateBoard(options: GenerateBoardOptions = {}): Board {
   return { tiles, vertices, edges, ports, robberHexId: desertHexId };
 }
 
-function generatePorts(topology: Topology, rng: () => number): Port[] {
+function generatePorts(topology: Topology, rng: () => number, portTypes: PortType[], portCount: number): Port[] {
   const coastalEdges = Array.from(topology.edges.values()).filter((e) => e.hexIds.length === 1);
   const ordered = traceCoastalCycle(coastalEdges);
-  const shuffledTypes = shuffle(PORT_TYPES, rng);
+  const shuffledTypes = shuffle(portTypes, rng);
 
-  const slotCount = Math.min(9, ordered.length);
+  const slotCount = Math.min(portCount, ordered.length);
   const ports: Port[] = [];
   for (let i = 0; i < slotCount; i++) {
     const edgeIndex = Math.floor((i * ordered.length) / slotCount);

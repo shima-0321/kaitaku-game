@@ -113,4 +113,49 @@ describe('generateBoard', () => {
       expect(balancedTotal).toBeLessThan(randomTotal);
     });
   });
+
+  describe('5-6 player extension board (playerCount >= 5)', () => {
+    it('produces the extended terrain distribution across 30 tiles', () => {
+      const board = generateBoard({ rng: mulberry32(42), playerCount: 6 });
+      expect(Object.keys(board.tiles)).toHaveLength(30);
+      const counts: Record<TerrainType, number> = { HILLS: 0, PASTURE: 0, MOUNTAINS: 0, FOREST: 0, FIELDS: 0, DESERT: 0 };
+      for (const tile of Object.values(board.tiles)) counts[tile.terrain]++;
+      expect(counts).toEqual({ HILLS: 5, PASTURE: 6, MOUNTAINS: 5, FOREST: 6, FIELDS: 6, DESERT: 2 });
+    });
+
+    it('assigns 28 number tokens (one extra set of 2-12 minus 7) to non-desert tiles', () => {
+      const board = generateBoard({ rng: mulberry32(7), playerCount: 5 });
+      const numbers = Object.values(board.tiles)
+        .map((t) => t.numberToken)
+        .filter((n): n is number => n !== null)
+        .sort((a, b) => a - b);
+      expect(numbers).toEqual([
+        2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12,
+      ]);
+    });
+
+    it('generates 11 ports', () => {
+      const board = generateBoard({ rng: mulberry32(5), playerCount: 6 });
+      expect(board.ports).toHaveLength(11);
+    });
+
+    it('still respects the 6/8 adjacency rule at the bigger size', () => {
+      for (let seed = 0; seed < 15; seed++) {
+        const board = generateBoard({ rng: mulberry32(seed * 1000 + 1), playerCount: 6 });
+        for (const tile of Object.values(board.tiles)) {
+          if (tile.numberToken !== 6 && tile.numberToken !== 8) continue;
+          for (const d of HEX_DIRECTIONS) {
+            const neighbor = board.tiles[hexKey(hexAdd(tile.coord, d))];
+            if (neighbor) expect([6, 8]).not.toContain(neighbor.numberToken);
+          }
+        }
+      }
+    });
+
+    it('falls back to the standard 19-tile board for 4 or fewer players', () => {
+      const board = generateBoard({ rng: mulberry32(1), playerCount: 4 });
+      expect(Object.keys(board.tiles)).toHaveLength(19);
+      expect(board.ports).toHaveLength(9);
+    });
+  });
 });

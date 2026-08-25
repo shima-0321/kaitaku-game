@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateStandardHexCoords, buildTopology } from './topology.js';
+import { generateStandardHexCoords, generateExtendedHexCoords, buildTopology, hexKey, hexAdd, HEX_DIRECTIONS } from './topology.js';
 
 describe('topology', () => {
   it('generates 19 hex tiles for the standard board', () => {
@@ -46,5 +46,52 @@ describe('topology', () => {
         expect(adj!.adjacentVertexIds).toContain(v.id);
       }
     }
+  });
+
+  describe('generateExtendedHexCoords (5-6 player island)', () => {
+    it('generates 30 hex tiles', () => {
+      expect(generateExtendedHexCoords()).toHaveLength(30);
+    });
+
+    it('lays out in the official 3-4-5-6-5-4-3 row pattern', () => {
+      const coords = generateExtendedHexCoords();
+      const rowSizes = new Map<number, number>();
+      for (const { q } of coords) rowSizes.set(q, (rowSizes.get(q) ?? 0) + 1);
+      const sizesByRow = [...rowSizes.entries()].sort(([a], [b]) => a - b).map(([, size]) => size);
+      expect(sizesByRow).toEqual([3, 4, 5, 6, 5, 4, 3]);
+    });
+
+    it('forms a single connected blob (every tile reachable from any other)', () => {
+      const coords = generateExtendedHexCoords();
+      const realSet = new Set(coords.map(hexKey));
+      const visited = new Set<string>();
+      const stack = [coords[0]];
+      while (stack.length > 0) {
+        const hex = stack.pop()!;
+        const id = hexKey(hex);
+        if (visited.has(id)) continue;
+        visited.add(id);
+        for (const d of HEX_DIRECTIONS) {
+          const n = hexAdd(hex, d);
+          if (realSet.has(hexKey(n)) && !visited.has(hexKey(n))) stack.push(n);
+        }
+      }
+      expect(visited.size).toBe(coords.length);
+    });
+
+    it('every vertex/edge structural invariant still holds on the bigger board', () => {
+      const coords = generateExtendedHexCoords();
+      const { vertices, edges } = buildTopology(coords);
+      for (const v of vertices.values()) {
+        expect(v.hexIds.length).toBeGreaterThanOrEqual(1);
+        expect(v.hexIds.length).toBeLessThanOrEqual(3);
+        expect(v.edgeIds.length).toBe(v.adjacentVertexIds.length);
+      }
+      for (const e of edges.values()) {
+        expect(e.hexIds.length).toBeGreaterThanOrEqual(1);
+        expect(e.hexIds.length).toBeLessThanOrEqual(2);
+        expect(e.vertexIds).toHaveLength(2);
+      }
+    });
   });
 });

@@ -46,6 +46,26 @@ export function generateStandardHexCoords(radius: number = BOARD_RADIUS): HexCoo
 }
 
 /**
+ * The 5-6 player extension's island: an elongated, asymmetric hexagon (7 rows of
+ * 3-4-5-6-5-4-3 tiles, 30 total) rather than the standard board's symmetric radius-2
+ * hexagon. Built by taking a radius-3 hexagon's column ranges and trimming exactly one
+ * tile off the same side of every column -- that shrinks every row by 1 (giving 6-|q|
+ * instead of 7-|q| tiles) while staying a single connected blob, since each column's
+ * r-range still overlaps its neighbors' the same way the standard generator relies on.
+ */
+export function generateExtendedHexCoords(): HexCoord[] {
+  const coords: HexCoord[] = [];
+  for (let q = -3; q <= 3; q++) {
+    const rMin = -2 - Math.min(0, q);
+    const rMax = 3 - Math.max(0, q);
+    for (let r = rMin; r <= rMax; r++) {
+      coords.push({ q, r });
+    }
+  }
+  return coords;
+}
+
+/**
  * A vertex is uniquely identified by the sorted set of the (up to 3) hex
  * coordinates that touch it. Off-board "virtual" hexes are included in the
  * id on purpose: this lets every vertex/edge -- interior or on the coastline

@@ -120,6 +120,15 @@ describe('reducer: build actions', () => {
     const currentPlayerId = state.turn!.currentPlayerId;
     state = applyAction(state, { type: 'ROLL_DICE', playerId: currentPlayerId, dice: [3, 3] });
 
+    // The board is randomly generated (unseeded), so whatever this roll just produced for
+    // currentPlayerId is board-layout-dependent -- clear it explicitly rather than assume it's
+    // empty, otherwise this assertion is flaky whenever the player's setup settlement happened to
+    // land next to a 6 that produces BRICK/LUMBER.
+    state = {
+      ...state,
+      players: state.players.map((p) => (p.id === currentPlayerId ? { ...p, resources: { ...p.resources, BRICK: 0, LUMBER: 0 } } : p)),
+    };
+
     const freeEdgeId = Object.values(state.board.edges).find(
       (e) => !e.road && e.vertexIds.some((v) => state.board.vertices[v].building?.playerId === currentPlayerId),
     )!.id;

@@ -1,5 +1,5 @@
 import type { BoardMode } from '@catan-online/shared'
-import { BOARD_MODE_LABELS_JA } from '@catan-online/shared'
+import { BOARD_MODE_LABELS_JA, MIN_PLAYERS, MAX_PLAYERS } from '@catan-online/shared'
 import { socket } from '../lib/socket'
 import { useGameStore } from '../hooks/useGameStore'
 
@@ -20,8 +20,8 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
   }
 
   const isHost = roomInfo.hostPlayerId === playerId
-  const canStart = roomInfo.players.length >= 3 && roomInfo.players.length <= 4
-  const roomFull = roomInfo.players.length >= 4
+  const canStart = roomInfo.players.length >= MIN_PLAYERS && roomInfo.players.length <= MAX_PLAYERS
+  const roomFull = roomInfo.players.length >= MAX_PLAYERS
 
   function handleCopyLink() {
     const url = `${window.location.origin}/room/${roomCode}`
@@ -104,10 +104,10 @@ export function LobbyPage({ roomCode }: { roomCode: string }) {
 
       {isHost ? (
         <button disabled={!canStart} onClick={handleStart}>
-          ゲーム開始 ({roomInfo.players.length}/4)
+          ゲーム開始 ({roomInfo.players.length}/{MAX_PLAYERS})
         </button>
       ) : (
-        <p>ホストの開始を待っています… ({roomInfo.players.length}/4)</p>
+        <p>ホストの開始を待っています… ({roomInfo.players.length}/{MAX_PLAYERS})</p>
       )}
     </div>
   )

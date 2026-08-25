@@ -1,6 +1,6 @@
 import type { Board, ResourceType, HexId, VertexId, EdgeId, BoardMode } from './board.js';
 
-export type PlayerColor = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
+export type PlayerColor = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW' | 'ORANGE' | 'PURPLE';
 
 export type ResourceHand = Record<ResourceType, number>;
 

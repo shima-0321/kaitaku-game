@@ -5,13 +5,14 @@ import {
   DEV_CARD_DECK_COMPOSITION,
   INITIAL_BUILDING_STOCK,
   BANK_STARTING_RESOURCE_COUNT,
+  MIN_PLAYERS,
+  MAX_PLAYERS,
+  PLAYER_COLORS,
 } from '@catan-online/shared';
 import type { GameState, Player, DevCard, PlayerColor } from '@catan-online/shared';
 import { shuffle, generateToken, rollTwoDice } from '../utils/rng.js';
 
-export const PLAYER_COLORS: PlayerColor[] = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
-export const MIN_PLAYERS = 3;
-export const MAX_PLAYERS = 4;
+export { MIN_PLAYERS, MAX_PLAYERS, PLAYER_COLORS };
 
 export function createNewGameState(roomId: string, roomCode: string, hostPlayerId: string): GameState {
   return {
@@ -63,7 +64,7 @@ export function createPlayer(id: string, sessionToken: string, name: string, col
   };
 }
 
-const BOT_NAMES = ['CPU-太郎', 'CPU-次郎', 'CPU-三郎'];
+const BOT_NAMES = ['CPU-太郎', 'CPU-次郎', 'CPU-三郎', 'CPU-四郎', 'CPU-五郎'];
 
 export function createBotPlayer(id: string, name: string, color: PlayerColor): Player {
   return {
@@ -110,7 +111,7 @@ export function startGame(state: GameState, turnOrder: TurnOrderRoll[]): GameSta
     ...state,
     players: orderedPlayers,
     phase: 'SETUP',
-    board: generateBoard({ mode: state.boardMode }),
+    board: generateBoard({ mode: state.boardMode, playerCount: orderedPlayers.length }),
     bank: { ...state.bank, devCardDeck: buildDevCardDeck() },
     setup: {
       order: snakeOrder,

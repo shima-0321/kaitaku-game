@@ -5,5 +5,6 @@ export * from './board/topology.js';
 export * from './board/generateBoard.js';
 export * from './board/legalMoves.js';
 export * from './rules/costs.js';
+export * from './rules/players.js';
 export * from './rules/bank.js';
 export * from './rules/trade.js';
