@@ -71,6 +71,52 @@ const PORT_RATIO_LABELS: Record<string, string> = {
   ORE: '2:1',
 }
 
+/** The classic "house" pentagon silhouette (flat base + peaked roof) real Catan settlement pieces
+ * use -- reads as a literal little building instead of an abstract token. */
+function pentaPoints(cx: number, cy: number, w: number, h: number): string {
+  const hw = w / 2
+  return [
+    [cx - hw, cy + h / 2],
+    [cx + hw, cy + h / 2],
+    [cx + hw, cy - h / 6],
+    [cx, cy - h / 2],
+    [cx - hw, cy - h / 6],
+  ]
+    .map((p) => p.join(','))
+    .join(' ')
+}
+
+/** A single crenellated tower silhouette for cities -- one coherent shape (not two overlapping
+ * houses, which reads as a rendering glitch at this scale). */
+function castlePoints(cx: number, cy: number, w: number, h: number): string {
+  const seg = w / 5
+  const x0 = cx - w / 2
+  const x1 = x0 + seg
+  const x2 = x1 + seg
+  const x3 = x2 + seg
+  const x4 = x3 + seg
+  const x5 = x4 + seg
+  const topY = cy - h / 2
+  const baseTopY = topY + h * 0.24
+  const bottomY = cy + h / 2
+  return [
+    [x0, bottomY],
+    [x0, topY],
+    [x1, topY],
+    [x1, baseTopY],
+    [x2, baseTopY],
+    [x2, topY],
+    [x3, topY],
+    [x3, baseTopY],
+    [x4, baseTopY],
+    [x4, topY],
+    [x5, topY],
+    [x5, bottomY],
+  ]
+    .map((p) => p.join(','))
+    .join(' ')
+}
+
 export interface HexBoardProps {
   board: Board
   playerColorById: Record<string, string>
@@ -122,6 +168,30 @@ export function HexBoard({
               </pattern>
             )
           })}
+        {/* gentle vignette toward a tile's edge only, so the photo stays vivid at the centre while
+            the hex frame still reads as one deliberate edge (replaces the old flat white wash) */}
+        <radialGradient id="tileVignette" cx="50%" cy="50%" r="68%">
+          <stop offset="68%" stopColor="#000000" stopOpacity={0} />
+          <stop offset="100%" stopColor="#000000" stopOpacity={0.28} />
+        </radialGradient>
+        <filter id="robberGlowFilter" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation={4.5} />
+        </filter>
+        {/* bright gold, not dark grey -- the pawn needs to pop against the darkened robber tile */}
+        <linearGradient id="robberGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#f0c56a" />
+          <stop offset="100%" stopColor="#b9791f" />
+        </linearGradient>
+        {/* shared "3D piece" treatment for roads/settlements/cities: a sheen (bright top-left corner
+            fading to a dark edge) so a flat colour fill reads as a small domed/beveled object */}
+        <radialGradient id="pieceSheen" cx="32%" cy="26%" r="78%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.6} />
+          <stop offset="45%" stopColor="#ffffff" stopOpacity={0.06} />
+          <stop offset="100%" stopColor="#000000" stopOpacity={0.32} />
+        </radialGradient>
+        <filter id="pieceShadow" x="-80%" y="-80%" width="260%" height="260%">
+          <feDropShadow dx={0} dy={1.4} stdDeviation={1.2} floodColor="#000000" floodOpacity={0.5} />
+        </filter>
       </defs>
 
       {Object.values(board.tiles).map((tile) => {
@@ -134,31 +204,46 @@ export function HexBoard({
         const isRolledNumber = highlightedNumber != null && tile.numberToken === highlightedNumber
         const hasPhoto = Boolean(TERRAIN_IMAGES[tile.terrain])
         const flatFill = tile.terrain === 'GOLD' ? GOLD_FILL : SEA_FILL
+        // the robber pawn sits right beside the number token (not a separate mark elsewhere on the
+        // tile) so "which number is blocked" reads in one glance instead of two
+        const pairOffset = isRobber && tile.numberToken ? 15 : 0
+        const numCx = center.x - pairOffset
+        const robberCx = isRobber ? center.x + (tile.numberToken ? 19 : 0) : center.x
+        const robberCy = center.y + 6
         return (
           <g key={tile.id}>
+            {/* a soft pulsing red halo *behind* everything else on the tile, so the robber's
+                location reads instantly even before you spot the pawn or the tile's own border */}
+            {isRobber && (
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={44}
+                fill="none"
+                stroke="var(--gp-danger)"
+                strokeWidth={10}
+                filter="url(#robberGlowFilter)"
+                className="robber-glow"
+              />
+            )}
             <polygon
               points={points}
               fill={hasPhoto ? `url(#terrain-${tile.id})` : flatFill}
-              stroke={isRolledNumber ? '#ffd600' : '#2b2b2b'}
-              strokeWidth={isRolledNumber ? 4 : 1.5}
+              stroke={isRolledNumber ? '#ffd600' : isRobber ? 'var(--gp-danger)' : '#2b2b2b'}
+              strokeWidth={isRolledNumber ? 4 : isRobber ? 4.5 : 1.5}
               onClick={selectable ? () => onHexClick?.(tile.id) : undefined}
               style={{ cursor: selectable ? 'pointer' : 'default' }}
               opacity={selectable ? 0.85 : 1}
             />
-            {/* lighten the photo so player pieces/roads stay readable on top of it */}
-            {hasPhoto && <polygon points={points} fill="#ffffff" opacity={0.38} style={{ pointerEvents: 'none' }} />}
-            {/* darken the whole tile to mark the robber's tile, instead of a token that would sit on
-                top of the number and hide it -- the terrain name and number stay fully readable */}
-            {isRobber && <polygon points={points} fill="#000000" opacity={0.4} style={{ pointerEvents: 'none' }} />}
-            {/* red X across the tile, corner-to-corner between the flat top edge and flat bottom edge
-                (corners[4]/[5] are the top-left/top-right corners, corners[1]/[2] the bottom-right/bottom-left) */}
+            {/* gentle vignette toward the border only -- keeps the photo vivid at the centre while
+                the hex frame still reads as one deliberate edge, and it naturally darkens exactly
+                where pieces/roads sit (the corners/edges), helping their contrast for free */}
+            <polygon points={points} fill="url(#tileVignette)" style={{ pointerEvents: 'none' }} />
             {isRobber && (
-              <g style={{ pointerEvents: 'none' }}>
-                <line x1={corners[4].x} y1={corners[4].y} x2={corners[1].x} y2={corners[1].y} stroke="#e53935" strokeWidth={5} strokeLinecap="round" />
-                <line x1={corners[5].x} y1={corners[5].y} x2={corners[2].x} y2={corners[2].y} stroke="#e53935" strokeWidth={5} strokeLinecap="round" />
-              </g>
+              // darkened + warmed so it reads as "blocked", distinct from a merely-shadowed tile
+              <polygon points={points} fill="rgba(30,4,4,0.5)" style={{ pointerEvents: 'none' }} />
             )}
-            {/* the pirate ship marker uses a skull instead of the robber's X, so the two are never confused */}
+            {/* the pirate ship marker uses a skull, so it's never confused with the robber */}
             {isPirate && (
               <g style={{ pointerEvents: 'none' }}>
                 <polygon points={points} fill="#000000" opacity={0.45} />
@@ -174,8 +259,8 @@ export function HexBoard({
                 textAnchor="middle"
                 fontSize={11}
                 fontWeight="bold"
-                fill="#1b1b1b"
-                stroke="#fff"
+                fill="#fff"
+                stroke="rgba(0,0,0,0.45)"
                 strokeWidth={3}
                 paintOrder="stroke"
                 style={{ pointerEvents: 'none' }}
@@ -183,16 +268,31 @@ export function HexBoard({
                 {TERRAIN_LABELS[tile.terrain]}
               </text>
             )}
+            {isRobber && (
+              <g style={{ pointerEvents: 'none' }}>
+                <ellipse cx={robberCx} cy={robberCy + 16} rx={8} ry={2.5} fill="rgba(0,0,0,0.5)" />
+                {/* a bright gold pawn (not a dark grey one) so it stands out against the darkened
+                    tile, plus a thin red rim to tie it back to the glow/border treatment above */}
+                <path
+                  d={`M ${robberCx - 7} ${robberCy + 13} Q ${robberCx - 7} ${robberCy + 2} ${robberCx} ${robberCy - 4} Q ${robberCx + 7} ${robberCy + 2} ${robberCx + 7} ${robberCy + 13} Z`}
+                  fill="url(#robberGrad)"
+                  stroke="var(--gp-danger)"
+                  strokeWidth={1.6}
+                />
+                <circle cx={robberCx} cy={robberCy - 9} r={5.5} fill="url(#robberGrad)" stroke="var(--gp-danger)" strokeWidth={1.6} />
+              </g>
+            )}
             {tile.numberToken && (
               // pointer-events: none so a click aimed at a tile's center (where this badge sits)
               // still reaches the tile polygon underneath instead of being silently swallowed
               <g style={{ pointerEvents: 'none' }}>
                 {isRolledNumber && (
-                  <circle cx={center.x} cy={center.y} r={20} fill="none" stroke="#ffd600" strokeWidth={3} className="number-token-glow" />
+                  <circle cx={numCx} cy={center.y} r={20} fill="none" stroke="#ffd600" strokeWidth={3} className="number-token-glow" />
                 )}
-                <circle cx={center.x} cy={center.y} r={16} fill="#f5ecd7" stroke="#1b1b1b" />
+                <circle cx={numCx} cy={center.y} r={16} fill="#f5ecd7" stroke="#1b1b1b" />
+                <circle cx={numCx} cy={center.y} r={16} fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth={1} transform="translate(0,-1)" />
                 <text
-                  x={center.x}
+                  x={numCx}
                   y={center.y + 3}
                   textAnchor="middle"
                   fontSize={16}
@@ -204,7 +304,7 @@ export function HexBoard({
                 {(() => {
                   const dots = PROBABILITY_DOTS[tile.numberToken] ?? 0
                   const dotSpacing = 4
-                  const startX = center.x - ((dots - 1) * dotSpacing) / 2
+                  const startX = numCx - ((dots - 1) * dotSpacing) / 2
                   return Array.from({ length: dots }, (_, i) => (
                     <circle
                       key={i}
@@ -269,6 +369,13 @@ export function HexBoard({
         const selectable = selectableEdgeIds?.has(edge.id)
         const piece = edge.road ?? edge.ship
         const color = piece ? playerColorById[piece.playerId] ?? '#000' : undefined
+        // perpendicular unit vector, for a thin highlight offset to one side of the road/ship --
+        // suggests light hitting the rounded top of a plank, matching the settlement/city sheen
+        const dx = pB.x - pA.x
+        const dy = pB.y - pA.y
+        const len = Math.hypot(dx, dy) || 1
+        const nx = -dy / len
+        const ny = dx / len
         return (
           <g key={edge.id}>
             {/* a selectable edge that already carries a piece (e.g. a ship offered up to move) needs
@@ -277,19 +384,42 @@ export function HexBoard({
               <line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#ffd600" strokeWidth={16} strokeLinecap="round" opacity={0.75} />
             )}
             {piece && (
-              <line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#ffffff" strokeWidth={10} strokeLinecap="round" />
+              <g filter="url(#pieceShadow)">
+                <line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#ffffff" strokeWidth={10} strokeLinecap="round" />
+                <line
+                  x1={pA.x}
+                  y1={pA.y}
+                  x2={pB.x}
+                  y2={pB.y}
+                  stroke={color}
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                  strokeDasharray={edge.ship ? '4,4' : undefined}
+                />
+                <line
+                  x1={pA.x + nx * 1.1}
+                  y1={pA.y + ny * 1.1}
+                  x2={pB.x + nx * 1.1}
+                  y2={pB.y + ny * 1.1}
+                  stroke="rgba(255,255,255,0.5)"
+                  strokeWidth={1.3}
+                  strokeLinecap="round"
+                  style={{ pointerEvents: 'none' }}
+                />
+              </g>
             )}
-            <line
-              x1={pA.x}
-              y1={pA.y}
-              x2={pB.x}
-              y2={pB.y}
-              stroke={piece ? color : selectable ? '#ffffffaa' : 'transparent'}
-              strokeWidth={piece ? 6 : 20}
-              strokeLinecap="round"
-              strokeDasharray={edge.ship ? '4,4' : undefined}
-              style={{ pointerEvents: 'none' }}
-            />
+            {!piece && (
+              <line
+                x1={pA.x}
+                y1={pA.y}
+                x2={pB.x}
+                y2={pB.y}
+                stroke={selectable ? '#ffffffaa' : 'transparent'}
+                strokeWidth={20}
+                strokeLinecap="round"
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
             {/* invisible wide hit-target, kept separate from the (thin, piece-colored) visible line
                 above so a selectable ship stays comfortably clickable without changing its width */}
             <line
@@ -316,29 +446,30 @@ export function HexBoard({
           <g key={vertex.id}>
             {selectable && <circle cx={p.x} cy={p.y} r={14} fill="#ffffffaa" />}
             {vertex.building?.type === 'SETTLEMENT' && (
-              <>
-                <circle cx={p.x} cy={p.y} r={9.5} fill="#ffffff" />
-                <circle cx={p.x} cy={p.y} r={7} fill={color} stroke="#1b1b1b" strokeWidth={1.5} />
-              </>
+              <g filter="url(#pieceShadow)">
+                <polygon points={pentaPoints(p.x, p.y, 15, 17)} fill="#ffffff" />
+                <polygon points={pentaPoints(p.x, p.y, 12, 14)} fill={color} stroke="#1b1b1b" strokeWidth={1.2} />
+                <polygon points={pentaPoints(p.x, p.y, 12, 14)} fill="url(#pieceSheen)" style={{ pointerEvents: 'none' }} />
+              </g>
             )}
             {vertex.building?.type === 'CITY' && (
-              <>
-                <rect x={p.x - 12.5} y={p.y - 12.5} width={25} height={25} fill="#ffffff" />
-                <rect x={p.x - 11} y={p.y - 11} width={22} height={22} fill={color} stroke="#1b1b1b" strokeWidth={1.5} />
+              <g filter="url(#pieceShadow)">
+                <polygon points={castlePoints(p.x, p.y, 20, 22)} fill="#ffffff" />
+                <polygon points={castlePoints(p.x, p.y, 17, 19)} fill={color} stroke="#1b1b1b" strokeWidth={1.3} strokeLinejoin="round" />
+                <polygon points={castlePoints(p.x, p.y, 17, 19)} fill="url(#pieceSheen)" style={{ pointerEvents: 'none' }} />
+                {/* a small dark doorway/window slit for a bit of character at a glance */}
+                <rect x={p.x - 1.6} y={p.y + 1.5} width={3.2} height={6.1} rx={0.6} fill="rgba(0,0,0,0.35)" style={{ pointerEvents: 'none' }} />
                 <text
                   x={p.x}
-                  y={p.y + 5}
+                  y={p.y - 2.5}
                   textAnchor="middle"
-                  fontSize={15}
-                  fill="#ffd700"
-                  stroke="#1b1b1b"
-                  strokeWidth={1.2}
-                  paintOrder="stroke"
+                  fontSize={7.5}
+                  fill="#ffd76b"
                   style={{ pointerEvents: 'none' }}
                 >
                   ★
                 </text>
-              </>
+              </g>
             )}
             <circle
               cx={p.x}

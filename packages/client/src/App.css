@@ -188,6 +188,25 @@ button.active {
   border-color: var(--accent);
 }
 
+/* a bit more tactile depth in-game specifically -- everywhere else keeps the flat parchment look */
+.game-page button {
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+.game-page button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.game-page button.active {
+  background: linear-gradient(180deg, var(--gp-accent-2), var(--gp-accent));
+  border-color: transparent;
+  color: var(--gp-accent-ink);
+}
+.game-page .btn-primary {
+  background: linear-gradient(180deg, var(--gp-accent-2), var(--gp-accent));
+  border-color: transparent;
+  color: var(--gp-accent-ink);
+}
+
 .room-code-display {
   font-family: var(--mono);
   font-size: 28px;
@@ -229,6 +248,22 @@ button.active {
 }
 
 .game-page {
+  /* Remap the app-wide tokens to the tabletop palette, scoped to gameplay only -- the top/lobby
+     pages keep the parchment theme untouched. Everything below (buttons, .panel-section, modals)
+     already reads these same variable names, so they pick up the new look for free. */
+  --bg: var(--gp-bg);
+  --text: var(--gp-text);
+  --text-h: var(--gp-text-h);
+  --border: var(--gp-border);
+  --code-bg: var(--gp-panel);
+  --accent: var(--gp-accent);
+  --accent-bg: color-mix(in srgb, var(--gp-accent) 16%, transparent);
+  --accent-border: color-mix(in srgb, var(--gp-accent) 45%, transparent);
+  --shadow: var(--gp-shadow-sm);
+  --sans: var(--gp-body);
+  --heading: var(--gp-display);
+  --mono: var(--gp-mono);
+
   display: flex;
   width: 100%;
   min-height: 100svh;
@@ -236,11 +271,33 @@ button.active {
   padding: 12px;
   box-sizing: border-box;
   flex-wrap: wrap;
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 5px),
+    radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.08), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
   box-shadow: inset 0 0 0 0 rgba(76, 175, 80, 0);
   transition: box-shadow 0.3s ease;
 }
 .game-page--my-turn {
   box-shadow: inset 0 0 0 4px rgba(76, 175, 80, 0.6);
+}
+/* wraps onto its own full-width row via flex-basis, same trick the mobile-only groups below use --
+   .game-page itself stays the same flex-wrap row container the mobile media queries expect */
+.game-page__topbar {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.game-page__topbar h1 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: clamp(20px, 2.6vw, 26px);
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: var(--text-h);
 }
 
 .turn-banner {
@@ -335,33 +392,71 @@ button.active {
 
 .game-page__board {
   flex: 2 1 480px;
-  min-width: 320px;
+  min-width: 300px;
+  /* the map is the star: pin it near the full viewport height so it fills its frame, and stays
+     put while the sidebar (log especially) is free to run taller than the fold and be scrolled to */
+  height: calc(100svh - 24px);
+  position: sticky;
+  top: 12px;
+  border-radius: 22px;
+  padding: clamp(8px, 1.4vw, 16px);
+  box-sizing: border-box;
+  background: linear-gradient(155deg, var(--gp-frame-1), var(--gp-frame-2) 55%, var(--gp-frame-3));
+  box-shadow: var(--gp-shadow-lg);
+  display: flex;
+}
+.game-page__board::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+.game-page__board-well {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 14px;
+  background: var(--gp-bg-deep);
+  box-shadow: var(--gp-shadow-inset);
+  padding: clamp(6px, 1.2vw, 16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .hex-board {
   width: 100%;
-  height: auto;
-  max-height: 90svh;
+  height: 100%;
   display: block;
 }
 
 .game-page__sidebar {
-  flex: 1 1 280px;
-  min-width: 260px;
+  flex: 1 1 320px;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   text-align: left;
 }
 
 .panel-section {
+  background: var(--code-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 10px 12px;
+  box-shadow: var(--shadow);
 }
 .panel-section h2 {
+  font-family: var(--heading);
   font-size: 15px;
-  margin-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin: 0 0 8px;
+  padding-left: 9px;
+  border-left: 4px solid var(--accent);
+  color: var(--text-h);
 }
 .panel-section ul {
   list-style: none;
@@ -371,6 +466,100 @@ button.active {
   flex-direction: column;
   gap: 4px;
   font-size: 14px;
+}
+
+/* build recipes: "道路（レンガ1＋木材1）" text, with small colour pips clustered at the row's end */
+.panel-section .recipe-list {
+  gap: 7px;
+}
+.recipe-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.recipe-row__name {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.recipe-row__name em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text);
+  opacity: 0.8;
+  margin-left: 2px;
+}
+.recipe-row__pips {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.pip {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+.pip--brick {
+  background: var(--gp-brick);
+}
+.pip--lumber {
+  background: var(--gp-lumber);
+}
+.pip--wool {
+  background: var(--gp-wool);
+}
+.pip--wheat {
+  background: var(--gp-wheat);
+}
+.pip--ore {
+  background: var(--gp-ore);
+}
+
+/* hand: one colour-coded chip per resource instead of a plain list */
+.hand-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.res-chip {
+  flex: 1 1 0;
+  min-width: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 4px 6px;
+  border-radius: 9px;
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  font-size: 11px;
+  font-weight: 700;
+}
+.res-chip__count {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.res-chip--brick {
+  background: var(--gp-brick);
+  color: #fbe9e0;
+}
+.res-chip--lumber {
+  background: var(--gp-lumber);
+  color: #e7f0e0;
+}
+.res-chip--wool {
+  background: var(--gp-wool);
+  color: #23260f;
+}
+.res-chip--wheat {
+  background: var(--gp-wheat);
+  color: #2c2205;
+}
+.res-chip--ore {
+  background: var(--gp-ore);
+  color: #eaedf1;
 }
 
 .title-badge {
@@ -423,12 +612,32 @@ button.active {
   display: flex;
   gap: 6px;
 }
-.die-face {
-  font-size: 34px;
-  line-height: 1;
-  display: inline-block;
+.die {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(155deg, var(--code-bg), var(--gp-panel-2, var(--code-bg)));
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -3px 4px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 7px;
+  box-sizing: border-box;
 }
-.dice-roller__dice.rolling .die-face {
+.die__pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-h);
+  opacity: 0.85;
+  justify-self: center;
+  align-self: center;
+}
+.die__pip--off {
+  opacity: 0;
+}
+.dice-roller__dice.rolling .die {
   animation: dice-shake 0.15s ease-in-out infinite;
 }
 .dice-roller__total {
@@ -465,8 +674,24 @@ button.active {
   }
 }
 
+.robber-glow {
+  animation: robber-glow-pulse 1.7s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes robber-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
 .game-log ul {
-  max-height: 320px;
+  /* generous on purpose -- fine for it to run off-screen, the player scrolls to it */
+  max-height: 520px;
   overflow-y: auto;
 }
 
@@ -846,6 +1071,15 @@ button.active {
   .game-page__sidebar {
     display: none;
   }
+  /* the desktop topbar duplicates what .mobile-portrait-help already shows -- keep it out of mobile
+     entirely, same as the sidebar it was pulled out of */
+  .game-page__topbar {
+    display: none;
+  }
+  .game-page__board {
+    position: static;
+    height: auto;
+  }
   .mobile-portrait-tabs,
   .mobile-portrait-status,
   .mobile-portrait-info,
@@ -867,6 +1101,7 @@ button.active {
     overflow: hidden;
   }
   .game-page__board {
+    position: static;
     flex: 1 1 auto;
     min-width: 0;
     width: 100%;
@@ -883,6 +1118,9 @@ button.active {
     max-width: 100%;
   }
   .game-page__sidebar {
+    display: none;
+  }
+  .game-page__topbar {
     display: none;
   }
   .mobile-tab-bar {

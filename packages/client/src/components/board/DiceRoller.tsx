@@ -1,7 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useGameStore } from '../../hooks/useGameStore'
 
-const DIE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'] // Unicode pips for 1-6
+// Which of a 3x3 grid's 9 cells (row-major, 0-8) hold a pip, per face value.
+const PIP_LAYOUTS: Record<number, number[]> = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+}
+
+function Die({ value }: { value: number }) {
+  const lit = new Set(PIP_LAYOUTS[value] ?? [])
+  return (
+    <div className="die">
+      {Array.from({ length: 9 }, (_, i) => (
+        <i key={i} className={lit.has(i) ? 'die__pip' : 'die__pip die__pip--off'} />
+      ))}
+    </div>
+  )
+}
 
 const ROLL_DURATION_MS = 700
 const ROLL_TICK_MS = 80
@@ -45,8 +64,8 @@ export function DiceRoller() {
   return (
     <div className="dice-roller">
       <div className={`dice-roller__dice ${isRolling ? 'rolling' : ''}`}>
-        <span className="die-face">{DIE_FACES[displayDice[0] - 1]}</span>
-        <span className="die-face">{DIE_FACES[displayDice[1] - 1]}</span>
+        <Die value={displayDice[0]} />
+        <Die value={displayDice[1]} />
       </div>
       {!isRolling && (
         <span className="dice-roller__total">

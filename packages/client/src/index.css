@@ -15,6 +15,38 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  /* Game-screen-only palette/type (see .game-page in App.css, which remaps the tokens above to
+     these -- scoped so the top/lobby pages keep their own look, only gameplay gets the tabletop
+     treatment). A wood-and-felt tabletop, not the app's parchment theme. */
+  --gp-bg: #a8bb92;
+  --gp-bg-deep: #86996f;
+  --gp-panel: #f5eed8;
+  --gp-panel-2: #ecdfbd;
+  --gp-border: #b6944f;
+  --gp-border-soft: #d9c48d;
+  --gp-text: #2e2413;
+  --gp-text-h: #241c0f;
+  --gp-text-muted: #6d5c3e;
+  --gp-accent: #a5691b;
+  --gp-accent-2: #c98426;
+  --gp-accent-ink: #fff8ea;
+  --gp-frame-1: #8a5a34;
+  --gp-frame-2: #55371f;
+  --gp-frame-3: #3c2716;
+  --gp-shadow-lg: 0 18px 40px rgba(35, 24, 8, 0.28), 0 4px 10px rgba(35, 24, 8, 0.18);
+  --gp-shadow-sm: 0 3px 8px rgba(35, 24, 8, 0.18);
+  --gp-shadow-inset: inset 0 2px 6px rgba(20, 14, 4, 0.35);
+  --gp-danger: #a3402f;
+  --gp-success: #4c7a3f;
+  --gp-brick: #ac4f2d;
+  --gp-lumber: #3d6a3a;
+  --gp-wool: #93a26a;
+  --gp-wheat: #c69b2b;
+  --gp-ore: #5b636e;
+  --gp-display: 'Kaisei Decol', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  --gp-body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --gp-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
@@ -43,6 +75,32 @@
     --social-bg: rgba(38, 32, 25, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+    --gp-bg: #172417;
+    --gp-bg-deep: #0e170e;
+    --gp-panel: #2b2116;
+    --gp-panel-2: #241a10;
+    --gp-border: #74582e;
+    --gp-border-soft: #4c3a20;
+    --gp-text: #f1e6ca;
+    --gp-text-h: #f7efd9;
+    --gp-text-muted: #bcac86;
+    --gp-accent: #dc9c3e;
+    --gp-accent-2: #f0b354;
+    --gp-accent-ink: #241704;
+    --gp-frame-1: #6b4429;
+    --gp-frame-2: #3a2415;
+    --gp-frame-3: #241609;
+    --gp-shadow-lg: 0 20px 44px rgba(0, 0, 0, 0.55), 0 6px 14px rgba(0, 0, 0, 0.45);
+    --gp-shadow-sm: 0 3px 10px rgba(0, 0, 0, 0.4);
+    --gp-shadow-inset: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+    --gp-danger: #cb6b52;
+    --gp-success: #6ea363;
+    --gp-brick: #cb6b47;
+    --gp-lumber: #62945c;
+    --gp-wool: #adbb84;
+    --gp-wheat: #e0b94a;
+    --gp-ore: #8892a0;
   }
 
   #social .button-icon {

@@ -39,10 +39,22 @@ import { startBgm, stopBgm, playGameSound, SOUND_URLS } from '../lib/sound'
 type BuildMode = 'NONE' | 'ROAD' | 'SHIP' | 'SETTLEMENT' | 'CITY' | 'MOVE_SHIP'
 
 const RESOURCE_ORDER: ResourceType[] = ['BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE']
+const RESOURCE_PIP_CLASS: Record<ResourceType, string> = {
+  BRICK: 'pip--brick',
+  LUMBER: 'pip--lumber',
+  WOOL: 'pip--wool',
+  GRAIN: 'pip--wheat',
+  ORE: 'pip--ore',
+}
 function formatCost(cost: Partial<ResourceHand>): string {
   return RESOURCE_ORDER.filter((res) => cost[res])
     .map((res) => `${RESOURCE_LABELS_JA[res]}${cost[res]}`)
-    .join(' ')
+    .join('＋')
+}
+function costPips(cost: Partial<ResourceHand>) {
+  return RESOURCE_ORDER.flatMap((res) =>
+    Array.from({ length: cost[res] ?? 0 }, (_, i) => <span key={`${res}-${i}`} className={`pip ${RESOURCE_PIP_CLASS[res]}`} />),
+  )
 }
 
 export function GamePage() {
@@ -474,11 +486,31 @@ export function GamePage() {
     return (
       <section className="build-recipes panel-section">
         <h2>建築レシピ</h2>
-        <ul>
-          <li>道路: {formatCost(ROAD_COST)}</li>
-          <li>開拓地: {formatCost(SETTLEMENT_COST)}</li>
-          <li>都市: {formatCost(CITY_COST)}</li>
-          <li>発展カード: {formatCost(DEV_CARD_COST)}</li>
+        <ul className="recipe-list">
+          <li className="recipe-row">
+            <span className="recipe-row__name">
+              道路<em>（{formatCost(ROAD_COST)}）</em>
+            </span>
+            <span className="recipe-row__pips">{costPips(ROAD_COST)}</span>
+          </li>
+          <li className="recipe-row">
+            <span className="recipe-row__name">
+              開拓地<em>（{formatCost(SETTLEMENT_COST)}）</em>
+            </span>
+            <span className="recipe-row__pips">{costPips(SETTLEMENT_COST)}</span>
+          </li>
+          <li className="recipe-row">
+            <span className="recipe-row__name">
+              都市<em>（{formatCost(CITY_COST)}）</em>
+            </span>
+            <span className="recipe-row__pips">{costPips(CITY_COST)}</span>
+          </li>
+          <li className="recipe-row">
+            <span className="recipe-row__name">
+              発展カード<em>（{formatCost(DEV_CARD_COST)}）</em>
+            </span>
+            <span className="recipe-row__pips">{costPips(DEV_CARD_COST)}</span>
+          </li>
         </ul>
       </section>
     )
@@ -515,13 +547,28 @@ export function GamePage() {
     return (
       <section className="hand-panel panel-section">
         <h2>手札 (合計 {totalResources(me.resources)}枚)</h2>
-        <ul>
-          <li>レンガ: {me.resources.BRICK}</li>
-          <li>木材: {me.resources.LUMBER}</li>
-          <li>羊毛: {me.resources.WOOL}</li>
-          <li>麦: {me.resources.GRAIN}</li>
-          <li>鉱石: {me.resources.ORE}</li>
-        </ul>
+        <div className="hand-row">
+          <div className="res-chip res-chip--brick">
+            <span>レンガ</span>
+            <span className="res-chip__count">{me.resources.BRICK}</span>
+          </div>
+          <div className="res-chip res-chip--lumber">
+            <span>木材</span>
+            <span className="res-chip__count">{me.resources.LUMBER}</span>
+          </div>
+          <div className="res-chip res-chip--wool">
+            <span>羊毛</span>
+            <span className="res-chip__count">{me.resources.WOOL}</span>
+          </div>
+          <div className="res-chip res-chip--wheat">
+            <span>麦</span>
+            <span className="res-chip__count">{me.resources.GRAIN}</span>
+          </div>
+          <div className="res-chip res-chip--ore">
+            <span>鉱石</span>
+            <span className="res-chip__count">{me.resources.ORE}</span>
+          </div>
+        </div>
       </section>
     )
   }
@@ -625,11 +672,17 @@ export function GamePage() {
 
     return (
       <section className="action-bar panel-section">
-        {isMyTurn && !state.turn?.hasRolled && <button onClick={handleRollDice}>サイコロを振る</button>}
+        {isMyTurn && !state.turn?.hasRolled && (
+          <button className="btn-primary" onClick={handleRollDice}>
+            サイコロを振る
+          </button>
+        )}
         {isMyTurn && state.turn?.hasRolled && (
           <>
             {renderBuildModeButtons()}
-            <button onClick={handleEndTurn}>手番を終了</button>
+            <button className="btn-primary" onClick={handleEndTurn}>
+              手番を終了
+            </button>
           </>
         )}
         {!isMyTurn && <p>{state.players.find((p) => p.id === state.turn?.currentPlayerId)?.name ?? '相手'}の手番です</p>}
@@ -708,25 +761,33 @@ export function GamePage() {
       {showRules && <GameRulesModal onClose={() => setShowRules(false)} />}
       {showCardHelp && <CardHelpModal onClose={() => setShowCardHelp(false)} />}
 
+      <div className="game-page__topbar">
+        <h1>開拓GAME</h1>
+        {renderHelpButtonsSection()}
+      </div>
+
       <div className="game-page__board">
-        <HexBoard
-          board={clientState.board}
-          playerColorById={playerColorById}
-          selectableVertexIds={selectableVertexIds}
-          selectableEdgeIds={selectableEdgeIds}
-          selectableHexIds={selectableHexIds}
-          highlightedNumber={rolledTotal}
-          onVertexClick={handleVertexClick}
-          onEdgeClick={handleEdgeClick}
-          onHexClick={handleHexClick}
-        />
+        <div className="game-page__board-well">
+          <HexBoard
+            board={clientState.board}
+            playerColorById={playerColorById}
+            selectableVertexIds={selectableVertexIds}
+            selectableEdgeIds={selectableEdgeIds}
+            selectableHexIds={selectableHexIds}
+            highlightedNumber={rolledTotal}
+            onVertexClick={handleVertexClick}
+            onEdgeClick={handleEdgeClick}
+            onHexClick={handleHexClick}
+          />
+        </div>
       </div>
 
       {/* Desktop sidebar deliberately doesn't reuse renderInfoGroup()/renderActionGroup() --
           those are grouped for the mobile tab popups specifically. Desktop keeps its own,
-          original section order here since the two layouts are independent designs. */}
+          original section order here since the two layouts are independent designs. The help
+          buttons themselves moved to game-page__topbar above (next to the title), out of the
+          sidebar's first slot. */}
       <aside className="game-page__sidebar">
-        {renderHelpButtonsSection()}
         {renderPlayerSummarySection()}
         {renderHandGroup()}
         {renderBuildRecipesSection()}
