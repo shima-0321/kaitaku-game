@@ -369,13 +369,20 @@ export function HexBoard({
         const selectable = selectableEdgeIds?.has(edge.id)
         const piece = edge.road ?? edge.ship
         const color = piece ? playerColorById[piece.playerId] ?? '#000' : undefined
-        // perpendicular unit vector, for a thin highlight offset to one side of the road/ship --
-        // suggests light hitting the rounded top of a plank, matching the settlement/city sheen
+        // Perpendicular unit vector, for a thin highlight offset to one side of the road/ship --
+        // suggests light hitting the rounded top of a plank, matching the settlement/city sheen.
+        // Canonicalized to always point "up" in screen space (ny <= 0): edge.vertexIds' order is
+        // arbitrary per edge, so using the raw perpendicular would flip the highlight to whichever
+        // side pA/pB happened to land on, making adjacent roads look like they used different art.
         const dx = pB.x - pA.x
         const dy = pB.y - pA.y
         const len = Math.hypot(dx, dy) || 1
-        const nx = -dy / len
-        const ny = dx / len
+        let nx = -dy / len
+        let ny = dx / len
+        if (ny > 0 || (ny === 0 && nx < 0)) {
+          nx = -nx
+          ny = -ny
+        }
         return (
           <g key={edge.id}>
             {/* a selectable edge that already carries a piece (e.g. a ship offered up to move) needs
