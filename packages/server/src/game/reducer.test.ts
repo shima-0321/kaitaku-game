@@ -333,7 +333,7 @@ describe('reducer: win condition', () => {
         pendingTrades: [],
         specialBuild: null,
         pendingGoldPick: null,
-        shipMovedThisTurn: false,
+        shipMovedThisTurn: {},
       },
     };
 

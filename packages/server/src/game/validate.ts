@@ -14,6 +14,8 @@ import {
   calculateTradeRatios,
   validateBankTradeAmounts,
   totalResources,
+  hasOnlyNonNegativeAmounts,
+  RESOURCE_TYPES,
 } from '@catan-online/shared';
 import type { PlayDevCardParams } from './actions.js';
 import type { GameAction, ValidationResult } from './actions.js';
@@ -146,6 +148,7 @@ function validateSelectDiscard(state: GameState, playerId: string, resources: Pa
 
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
+  if (!hasOnlyNonNegativeAmounts(resources)) return invalid('invalid resource amounts');
   if (totalResources(resources as ResourceHand) !== remaining) {
     return invalid(`you must discard exactly ${remaining} resource(s)`);
   }
@@ -252,7 +255,7 @@ function validateBuildShip(state: GameState, playerId: string, edgeId: string): 
 function validateMoveShip(state: GameState, playerId: string, fromEdgeId: string, toEdgeId: string): ValidationResult {
   const phaseErr = requireActiveBuildOrSpecialBuild(state, playerId);
   if (phaseErr) return phaseErr;
-  if (state.turn!.shipMovedThisTurn) return invalid('only one ship may be moved per turn');
+  if (state.turn!.shipMovedThisTurn[playerId]) return invalid('only one ship may be moved per turn');
   if (fromEdgeId === toEdgeId) return invalid('must move the ship to a different edge');
   if (!state.board.edges[fromEdgeId]) return invalid('unknown edge');
   if (!state.board.edges[toEdgeId]) return invalid('unknown edge');
@@ -363,6 +366,7 @@ function validatePlayDevCard(
       if (!resources || totalResources(resources as ResourceHand) !== 2) {
         return invalid('year of plenty requires exactly 2 resources');
       }
+      if (!hasOnlyNonNegativeAmounts(resources)) return invalid('invalid resource amounts');
       for (const key of Object.keys(resources) as (keyof ResourceHand)[]) {
         const amount = resources[key] ?? 0;
         if (amount > state.bank.resources[key]) return invalid('the bank does not have enough of that resource');
@@ -370,7 +374,7 @@ function validatePlayDevCard(
       return VALID;
     }
     case 'MONOPOLY': {
-      if (!params?.resource) return invalid('monopoly requires a resource to claim');
+      if (!params?.resource || !RESOURCE_TYPES.includes(params.resource)) return invalid('monopoly requires a valid resource to claim');
       return VALID;
     }
     default:
@@ -392,6 +396,7 @@ function validateSelectGoldResources(state: GameState, playerId: string, resourc
   if (state.phase !== 'PLAYING' || !state.turn?.pendingGoldPick) return invalid('no gold pick is pending');
   const owed = state.turn.pendingGoldPick[playerId] ?? 0;
   if (owed <= 0) return invalid('you have no gold pick owed');
+  if (!hasOnlyNonNegativeAmounts(resources)) return invalid('invalid resource amounts');
   if (totalResources(resources as ResourceHand) !== owed) return invalid(`you must pick exactly ${owed} resource(s)`);
   for (const key of Object.keys(resources) as (keyof ResourceHand)[]) {
     const amount = resources[key] ?? 0;
@@ -414,6 +419,7 @@ function validateBankTrade(
 ): ValidationResult {
   const phaseErr = requireActiveBuildPhase(state, playerId);
   if (phaseErr) return phaseErr;
+  if (!hasOnlyNonNegativeAmounts(give) || !hasOnlyNonNegativeAmounts(receive)) return invalid('invalid resource amounts');
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
   if (!canAfford(player.resources, give)) return invalid('you do not have the offered resources');
@@ -432,6 +438,7 @@ function validateProposeTrade(
 ): ValidationResult {
   const phaseErr = requireActiveBuildPhase(state, playerId);
   if (phaseErr) return phaseErr;
+  if (!hasOnlyNonNegativeAmounts(give) || !hasOnlyNonNegativeAmounts(request)) return invalid('invalid resource amounts');
   const player = findPlayer(state, playerId);
   if (!player) return invalid('unknown player');
 

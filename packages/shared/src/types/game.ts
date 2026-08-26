@@ -108,8 +108,10 @@ export interface TurnState {
   specialBuild: SpecialBuildState | null;
   /** Gold hex (Seafarers): playerId -> number of free resource picks still owed after this roll. */
   pendingGoldPick: Record<string, number> | null;
-  /** Seafarers: at most one ship may be relocated per turn. */
-  shipMovedThisTurn: boolean;
+  /** Seafarers: at most one ship may be relocated per turn -- keyed per player (not a single
+   * shared flag) because the special building phase runs several players' build slots through
+   * this same TurnState in turn, and each player's slot needs its own independent allowance. */
+  shipMovedThisTurn: Record<string, boolean>;
 }
 
 export type GamePhase = 'LOBBY' | 'SETUP' | 'PLAYING' | 'GAME_OVER';
@@ -218,6 +220,17 @@ export function createEmptyHand(): ResourceHand {
 
 export function totalResources(hand: Partial<ResourceHand>): number {
   return (hand.BRICK ?? 0) + (hand.LUMBER ?? 0) + (hand.WOOL ?? 0) + (hand.GRAIN ?? 0) + (hand.ORE ?? 0);
+}
+
+/**
+ * Guards against a negative amount smuggled into a client-supplied resource payload. Every one of
+ * these payloads (discard, gold pick, year of plenty, bank/player trades) is applied directly to a
+ * hand and the bank without re-deriving the amounts server-side, so a negative entry would let the
+ * sender fabricate resources (or drain someone else's hand) in a way totalResources()/canAfford()
+ * alone don't catch -- a negative "cost" reads as trivially affordable, and nets a gain once applied.
+ */
+export function hasOnlyNonNegativeAmounts(hand: Partial<ResourceHand>): boolean {
+  return (Object.values(hand) as (number | undefined)[]).every((v) => (v ?? 0) >= 0);
 }
 
 // re-export board hex/vertex/edge id types for convenience

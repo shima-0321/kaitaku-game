@@ -39,7 +39,7 @@ function makePlayingState(): GameState {
       pendingTrades: [],
       specialBuild: null,
       pendingGoldPick: null,
-      shipMovedThisTurn: false,
+      shipMovedThisTurn: {},
     },
   };
 }
@@ -73,6 +73,32 @@ describe('bank trade', () => {
     };
     const result = validateAction(withResources, { type: 'BANK_TRADE', playerId: 'p0', give: { BRICK: 2 }, receive: { ORE: 1 } });
     expect(result.ok).toBe(false);
+  });
+
+  it('rejects a negative amount smuggled alongside a legitimate-looking single trade', () => {
+    // give's single *positive* entry (BRICK: 4) alone reads as a valid 4:1 trade, but the
+    // reducer applies every key in the payload -- a negative LUMBER here would otherwise let
+    // the sender gain resources for free instead of spending them.
+    let state = makePlayingState();
+    state = {
+      ...state,
+      players: state.players.map((p) => (p.id === 'p0' ? { ...p, resources: { ...p.resources, BRICK: 4 } } : p)),
+    };
+    const smuggledInGive = validateAction(state, {
+      type: 'BANK_TRADE',
+      playerId: 'p0',
+      give: { BRICK: 4, LUMBER: -100 },
+      receive: { ORE: 1 },
+    });
+    expect(smuggledInGive.ok).toBe(false);
+
+    const smuggledInReceive = validateAction(state, {
+      type: 'BANK_TRADE',
+      playerId: 'p0',
+      give: { BRICK: 4 },
+      receive: { ORE: 1, WOOL: -100 },
+    });
+    expect(smuggledInReceive.ok).toBe(false);
   });
 });
 
@@ -263,6 +289,35 @@ describe('player-to-player trade', () => {
 
     state = applyAction(state, { type: 'CANCEL_TRADE', playerId: 'p0', tradeId: 't1' });
     expect(state.turn!.pendingTrades).toHaveLength(0);
+  });
+
+  it('rejects a negative amount smuggled into a proposed trade', () => {
+    // a negative entry on either side would otherwise drain the *other* player's hand (or pad
+    // the proposer's) beyond what either side actually agreed to once the trade settles.
+    let state = makePlayingState();
+    state = {
+      ...state,
+      players: state.players.map((p) => (p.id === 'p0' ? { ...p, resources: { ...p.resources, WOOL: 1 } } : p)),
+    };
+    const smuggledInGive = validateAction(state, {
+      type: 'PROPOSE_TRADE',
+      playerId: 'p0',
+      tradeId: 't1',
+      give: { WOOL: 1, ORE: -50 },
+      request: { GRAIN: 1 },
+      targetPlayerId: null,
+    });
+    expect(smuggledInGive.ok).toBe(false);
+
+    const smuggledInRequest = validateAction(state, {
+      type: 'PROPOSE_TRADE',
+      playerId: 'p0',
+      tradeId: 't1',
+      give: { WOOL: 1 },
+      request: { GRAIN: 1, BRICK: -50 },
+      targetPlayerId: null,
+    });
+    expect(smuggledInRequest.ok).toBe(false);
   });
 
   it('clears all pending trades when the turn ends', () => {

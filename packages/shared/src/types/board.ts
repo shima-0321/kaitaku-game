@@ -11,6 +11,10 @@ export type TerrainType = 'HILLS' | 'PASTURE' | 'MOUNTAINS' | 'FOREST' | 'FIELDS
 
 export type ResourceType = 'BRICK' | 'LUMBER' | 'WOOL' | 'GRAIN' | 'ORE';
 
+/** For validating a resource identifier that arrived over the wire (e.g. Monopoly's target
+ * resource) rather than being narrowed by the type system already. */
+export const RESOURCE_TYPES: ResourceType[] = ['BRICK', 'LUMBER', 'WOOL', 'GRAIN', 'ORE'];
+
 export const TERRAIN_RESOURCE: Record<TerrainType, ResourceType | null> = {
   HILLS: 'BRICK',
   PASTURE: 'WOOL',

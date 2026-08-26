@@ -200,7 +200,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingTrades: [],
             specialBuild: null,
             pendingGoldPick: null,
-            shipMovedThisTurn: false,
+            shipMovedThisTurn: {},
           };
           draft.setup = null;
           addLog(draft, '初期配置が完了しました。ゲーム開始です！');
@@ -380,7 +380,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
       return produce(state, (draft) => {
         draft.board.edges[action.fromEdgeId].ship = null;
         draft.board.edges[action.toEdgeId].ship = { playerId: action.playerId };
-        draft.turn!.shipMovedThisTurn = true;
+        draft.turn!.shipMovedThisTurn[action.playerId] = true;
         addLog(draft, `${playerName(draft, action.playerId)}が船を移動しました。`);
         refreshLongestRoad(draft);
         checkWinCondition(draft, action.playerId);
@@ -580,7 +580,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingTrades: [],
             specialBuild: null,
             pendingGoldPick: null,
-            shipMovedThisTurn: false,
+            shipMovedThisTurn: {},
           };
           checkWinCondition(draft, nextPlayerId);
         }
@@ -600,7 +600,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
             pendingTrades: [],
             specialBuild: null,
             pendingGoldPick: null,
-            shipMovedThisTurn: false,
+            shipMovedThisTurn: {},
           };
           addLog(draft, `${playerName(draft, sb.nextPlayerId)}の手番です。`);
           checkWinCondition(draft, sb.nextPlayerId);

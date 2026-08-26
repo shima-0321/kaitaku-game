@@ -39,7 +39,7 @@ function makePlayingState(): GameState {
       pendingTrades: [],
       specialBuild: null,
       pendingGoldPick: null,
-      shipMovedThisTurn: false,
+      shipMovedThisTurn: {},
     },
   };
 }
@@ -98,6 +98,19 @@ describe('discard stage', () => {
   it('rejects discarding resources the player does not have', () => {
     const state = stateAwaitingDiscard();
     const result = validateAction(state, { type: 'SELECT_DISCARD', playerId: 'p0', resources: { ORE: 4 } });
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects a negative amount smuggled in to net a gain instead of a discard', () => {
+    // BRICK:4 + LUMBER:4 - ORE:4 still totals the required 4, and every individual key passes
+    // canAfford (a negative "cost" is trivially affordable) -- without an explicit non-negative
+    // check this would zero out the player's real hand while also handing them 4 free ORE.
+    const state = stateAwaitingDiscard();
+    const result = validateAction(state, {
+      type: 'SELECT_DISCARD',
+      playerId: 'p0',
+      resources: { BRICK: 4, LUMBER: 4, ORE: -4 },
+    });
     expect(result.ok).toBe(false);
   });
 

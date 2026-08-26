@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { GameState, Player, PlayerColor, DevCard, DevCardType } from '@catan-online/shared';
+import type { GameState, Player, PlayerColor, DevCard, DevCardType, ResourceType } from '@catan-online/shared';
 import { createEmptyPlayerStats } from '@catan-online/shared';
 import { createNewGameState } from './setup.js';
 import { applyAction } from './reducer.js';
@@ -44,7 +44,7 @@ function makePlayingState(devCardDeck: DevCard[] = []): GameState {
       pendingTrades: [],
       specialBuild: null,
       pendingGoldPick: null,
-      shipMovedThisTurn: false,
+      shipMovedThisTurn: {},
     },
   };
 }
@@ -182,6 +182,24 @@ describe('playing development cards', () => {
     expect(player.resources.GRAIN).toBe(1);
   });
 
+  it('rejects a negative amount smuggled in to net more than 2 resources', () => {
+    // ORE:5 + LUMBER:-3 still totals the required 2, and neither individual key exceeds the
+    // bank's supply check on its own -- without an explicit non-negative check this would hand
+    // the player 5 free ORE off a card that's only supposed to grant 2.
+    const state = makePlayingState();
+    const withCard: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === 'p0' ? { ...p, devCards: [makeDevCard('yop1', 'YEAR_OF_PLENTY', 1)] } : p)),
+    };
+    const result = validateAction(withCard, {
+      type: 'PLAY_DEV_CARD',
+      playerId: 'p0',
+      devCardId: 'yop1',
+      params: { resources: { ORE: 5, LUMBER: -3 } },
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it('monopoly: takes the named resource from every other player', () => {
     const state = makePlayingState();
     let withCard: GameState = {
@@ -201,5 +219,22 @@ describe('playing development cards', () => {
     expect(p0.resources.WOOL).toBe(5);
     expect(p1.resources.WOOL).toBe(0);
     expect(p2.resources.WOOL).toBe(0);
+  });
+
+  it('rejects monopoly with a resource identifier that is not one of the 5 real resources', () => {
+    // params.resource is only narrowed to ResourceType by the TS layer -- an untyped socket.io
+    // payload could send anything, and reducer.ts indexes player.resources[resource] directly.
+    const state = makePlayingState();
+    const withCard: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === 'p0' ? { ...p, devCards: [makeDevCard('mono1', 'MONOPOLY', 1)] } : p)),
+    };
+    const result = validateAction(withCard, {
+      type: 'PLAY_DEV_CARD',
+      playerId: 'p0',
+      devCardId: 'mono1',
+      params: { resource: 'GOLD' as unknown as ResourceType },
+    });
+    expect(result.ok).toBe(false);
   });
 });

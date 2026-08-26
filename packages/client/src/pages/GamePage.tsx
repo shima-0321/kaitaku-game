@@ -172,7 +172,7 @@ export function GamePage() {
     me.buildingStock.ships > 0 &&
     Object.values(clientState.board.edges).some((e) => canPlaceShip(clientState.board, e.id, playerId))
   const canMoveAnyShip =
-    !clientState.turn?.shipMovedThisTurn &&
+    !clientState.turn?.shipMovedThisTurn?.[playerId] &&
     Object.values(clientState.board.edges).some((e) => canMoveShip(clientState.board, e.id, playerId))
   const canBuildSettlement =
     canAfford(me.resources, SETTLEMENT_COST) &&

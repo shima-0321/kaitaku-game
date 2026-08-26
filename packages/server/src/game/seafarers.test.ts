@@ -53,7 +53,7 @@ function makeSeafarersPlayingState(seed: number): GameState {
       pendingTrades: [],
       specialBuild: null,
       pendingGoldPick: null,
-      shipMovedThisTurn: false,
+      shipMovedThisTurn: {},
     },
   };
 }
@@ -252,6 +252,20 @@ describe('gold hex picks', () => {
     expect(validateAction(withState, { type: 'SELECT_GOLD_RESOURCES', playerId: 'p0', resources: { ORE: 1 } }).ok).toBe(false);
     expect(validateAction(withState, { type: 'SELECT_GOLD_RESOURCES', playerId: 'p0', resources: { GRAIN: 1 } }).ok).toBe(true);
   });
+
+  it('rejects a negative amount smuggled in to net more than owed', () => {
+    // ORE:5 + LUMBER:-4 still totals the 1 owed, and neither key individually exceeds the bank's
+    // supply on its own -- without an explicit non-negative check this would hand the player 5
+    // free ORE off a pick that's only supposed to grant 1.
+    const { state, goldNumber } = stateWithGoldOwed(9);
+    const withState = applyAction(state, { type: 'ROLL_DICE', playerId: 'p0', dice: diceFor(goldNumber) });
+    const result = validateAction(withState, {
+      type: 'SELECT_GOLD_RESOURCES',
+      playerId: 'p0',
+      resources: { ORE: 5, LUMBER: -4 },
+    });
+    expect(result.ok).toBe(false);
+  });
 });
 
 describe('moving ships', () => {
@@ -294,7 +308,7 @@ describe('moving ships', () => {
     expect(result.board.edges[eLooseId].ship).toBeNull();
     expect(result.board.edges[eDestinationId].ship?.playerId).toBe('p0');
     expect(result.board.edges[eAnchorId].ship?.playerId).toBe('p0'); // untouched
-    expect(result.turn!.shipMovedThisTurn).toBe(true);
+    expect(result.turn!.shipMovedThisTurn.p0).toBe(true);
   });
 
   it('allows only one ship move per turn', () => {
@@ -304,7 +318,24 @@ describe('moving ships', () => {
 
     result = applyAction(result, { type: 'END_TURN', playerId: 'p0' });
     // moving is a per-turn allowance, not exhausted once and for all
-    expect(result.turn!.shipMovedThisTurn).toBe(false);
+    expect(result.turn!.shipMovedThisTurn.p0).toBeFalsy();
+  });
+
+  it('does not let one player moving a ship consume a different player\'s own allowance', () => {
+    // Regression: shipMovedThisTurn used to be a single flag shared by the whole TurnState, but
+    // the special building phase runs several players' build slots through that same TurnState
+    // in turn -- p0 using their allowance must not lock p1 out of their own slot right after.
+    const { state, eLooseId, eDestinationId } = stateWithShipChain(24);
+    const result = applyAction(state, { type: 'MOVE_SHIP', playerId: 'p0', fromEdgeId: eLooseId, toEdgeId: eDestinationId });
+
+    expect(result.turn!.shipMovedThisTurn.p0).toBe(true);
+    expect(result.turn!.shipMovedThisTurn.p1).toBeFalsy();
+
+    // p1 doesn't own a ship at this edge, so this is still invalid overall -- the point is *why*:
+    // it must not be rejected for "only one ship per turn", which is the exact bug this guards against.
+    const p1Attempt = validateAction(result, { type: 'MOVE_SHIP', playerId: 'p1', fromEdgeId: eDestinationId, toEdgeId: eLooseId });
+    expect(p1Attempt.ok).toBe(false);
+    expect(p1Attempt.error).not.toMatch(/only one ship/);
   });
 
   it('rejects a ship move made without having rolled', () => {
